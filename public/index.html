@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>챌린지 오프라인 일정 신청</title>
+<style>
+  :root { --brand:#2f6fed; --brand-d:#1f57c4; --bg:#f5f7fb; --line:#e3e7ee; --muted:#6b7280; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+         background:var(--bg); color:#1f2430; line-height:1.5; }
+  .wrap { max-width:640px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .sub { color:var(--muted); margin:0 0 28px; font-size:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:18px;
+          box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  label { display:block; font-weight:600; font-size:14px; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=text], input[type=email], input[type=tel] {
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  input:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+  input:disabled { background:#f3f4f6; color:#8a909b; }
+  .sec-title { font-weight:700; font-size:15px; margin:0 0 12px; }
+  .slots { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .slot { border:1.5px solid var(--line); border-radius:12px; padding:14px; cursor:pointer; background:#fff;
+          transition:.12s; position:relative; }
+  .slot:hover:not(.disabled) { border-color:var(--brand); }
+  .slot.selected { border-color:var(--brand); background:#eef4ff; }
+  .slot.current { outline:2px dashed #9db8f0; }
+  .slot.disabled { opacity:.55; cursor:not-allowed; background:#f3f4f6; }
+  .slot .lbl { font-weight:700; font-size:15px; }
+  .slot .meta { font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-top:8px; }
+  .b-open { background:#e7f6ec; color:#1a7f43; }
+  .b-wait { background:#fef3e0; color:#b5651d; }
+  .b-full { background:#fde8e8; color:#c0392b; }
+  .b-cur  { background:#e6ecfb; color:#1f57c4; }
+  .warn { margin-top:10px; font-size:12.5px; color:#b5651d; background:#fff7ec; border:1px solid #f6e2c0;
+          border-radius:8px; padding:8px 10px; display:none; }
+  .warn.show { display:block; }
+  .editbar { background:#eef4ff; border:1px solid #cfe0ff; border-radius:10px; padding:12px 14px;
+             font-size:13.5px; margin-bottom:16px; display:none; }
+  .editbar.show { display:block; }
+  .editbar b { color:var(--brand-d); }
+  button.primary { width:100%; margin-top:20px; padding:14px; font-size:16px; font-weight:700; color:#fff;
+          background:var(--brand); border:none; border-radius:10px; cursor:pointer; }
+  button.primary:hover { background:var(--brand-d); }
+  button.primary:disabled { background:#9db8f0; cursor:not-allowed; }
+  button.link { background:none; border:none; color:var(--brand); font-weight:600; cursor:pointer;
+          font-size:13.5px; padding:0; font-family:inherit; }
+  .msg { margin-top:14px; font-size:14px; padding:12px 14px; border-radius:10px; display:none; }
+  .msg.err { display:block; background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; }
+  .foot { text-align:center; margin-top:18px; font-size:13.5px; color:var(--muted); }
+  .foot a, .foot .link { color:var(--brand); text-decoration:none; font-weight:600; }
+  .done { text-align:center; padding:12px 0; }
+  .done .check { width:56px; height:56px; border-radius:50%; background:#e7f6ec; color:#1a7f43;
+          font-size:30px; line-height:56px; margin:0 auto 14px; }
+  .done h2 { margin:0 0 6px; }
+  .detail { background:#f5f7fb; border-radius:10px; padding:14px; margin:16px 0; text-align:left; font-size:14px; }
+  .detail > div { margin:3px 0; }
+  .detail b { display:inline-block; width:80px; color:var(--muted); font-weight:600; }
+  @media (max-width:480px){ .slots{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="pageTitle">챌린지 오프라인 일정 신청</h1>
+  <p class="sub" id="pageSub">참석을 원하는 일정을 선택해 신청해 주세요. 한 분당 하나의 일정만 신청할 수 있습니다.</p>
+
+  <!-- 신청/수정 폼 -->
+  <div id="formView">
+    <div class="editbar" id="editbar"></div>
+
+    <div class="card">
+      <label for="name">이름</label>
+      <input id="name" type="text" placeholder="홍길동" autocomplete="name" />
+      <label for="email">이메일</label>
+      <input id="email" type="email" placeholder="example@email.com" autocomplete="email" />
+      <label for="phone">휴대폰 번호</label>
+      <input id="phone" type="tel" placeholder="010-1234-5678" autocomplete="tel" />
+    </div>
+
+    <div class="card">
+      <p class="sec-title" id="slotTitle">참석 일정 선택</p>
+      <div class="slots" id="slots">불러오는 중…</div>
+      <div class="warn" id="warn"></div>
+    </div>
+
+    <button class="primary" id="submitBtn">신청하기</button>
+    <div class="msg" id="msg"></div>
+    <p class="foot" id="footHint">이미 신청하셨나요? <button class="link" id="toLookup">내 신청 내역 확인 / 일정 변경 →</button></p>
+  </div>
+
+  <!-- 내 신청 조회 -->
+  <div id="lookupView" style="display:none">
+    <div class="card">
+      <label for="lookupEmail">이메일</label>
+      <input id="lookupEmail" type="email" placeholder="신청 시 입력한 이메일" autocomplete="email" />
+      <button class="primary" id="lookupBtn" style="margin-top:16px">내 신청 확인하기</button>
+      <div class="msg" id="lookupMsg"></div>
+    </div>
+    <p class="foot"><button class="link" id="backToForm1">← 신청하기로 돌아가기</button></p>
+  </div>
+
+  <!-- 신청 상태 화면 -->
+  <div id="statusView" class="card" style="display:none">
+    <h2 style="margin:0 0 4px; font-size:19px">내 신청 내역</h2>
+    <p class="sub" id="statusSub" style="margin-bottom:16px">아래 내용으로 신청되어 있습니다.</p>
+    <div class="detail" id="statusDetail"></div>
+    <div class="msg" id="statusMsg"></div>
+    <button class="primary" id="toChangeBtn" style="display:none">일정 변경하기 (1회 가능)</button>
+    <p class="foot"><button class="link" id="backToForm2">← 신청하기로 돌아가기</button></p>
+  </div>
+
+  <!-- 완료 화면 -->
+  <div id="doneView" class="card done" style="display:none">
+    <div class="check">✓</div>
+    <h2 id="doneTitle">신청이 완료되었습니다</h2>
+    <p class="sub" id="doneSub" style="margin-bottom:0">아래 내용으로 접수되었습니다.</p>
+    <div class="detail" id="doneDetail"></div>
+    <p class="foot" id="doneFoot"></p>
+  </div>
+</div>
+
+<script>
+let slots = [];
+let selected = null;
+let mode = 'signup';        // 'signup' | 'edit'
+let currentReg = null;      // 수정 모드일 때 기존 신청 정보
+
+const WAIT_MSG = '잔여 좌석이 얼마 남지 않았으니 다른 일정을 선택하는 것을 권장합니다.';
+
+async function loadSlots() {
+  const res = await fetch('/api/slots');
+  slots = (await res.json()).slots;
+  renderSlots();
+}
+
+function renderSlots() {
+  const el = document.getElementById('slots');
+  el.innerHTML = '';
+  slots.forEach((s) => {
+    const isCurrent = mode === 'edit' && currentReg && s.id === currentReg.slotId;
+    const disabled = s.status === 'full' && !isCurrent;
+    const div = document.createElement('div');
+    div.className = 'slot' + (disabled ? ' disabled' : '') + (selected === s.id ? ' selected' : '')
+      + (isCurrent ? ' current' : '');
+    let badge;
+    if (isCurrent) badge = '<span class="badge b-cur">현재 신청</span>';
+    else if (s.status === 'open') badge = '<span class="badge b-open">신청 가능</span>';
+    else if (s.status === 'waitlist') badge = '<span class="badge b-wait">마감 대기 중</span>';
+    else badge = '<span class="badge b-full">마감</span>';
+    div.innerHTML =
+      '<div class="lbl">' + s.label + '</div>' +
+      '<div class="meta">잔여 ' + s.remaining + ' / ' + s.capacity + '명</div>' + badge;
+    if (!disabled && !isCurrent) div.onclick = () => selectSlot(s.id);
+    el.appendChild(div);
+  });
+}
+
+function selectSlot(id) {
+  selected = id;
+  renderSlots();
+  const s = slots.find((x) => x.id === id);
+  const warn = document.getElementById('warn');
+  if (s && s.status === 'waitlist') { warn.textContent = WAIT_MSG; warn.classList.add('show'); }
+  else warn.classList.remove('show');
+}
+
+// 신청 또는 수정 버튼
+async function onSubmit() {
+  if (mode === 'edit') return doUpdate();
+  return doRegister();
+}
+
+async function doRegister() {
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  msg.className = 'msg';
+  const payload = {
+    name: document.getElementById('name').value,
+    email: document.getElementById('email').value,
+    phone: document.getElementById('phone').value,
+    slotId: selected,
+  };
+  if (!payload.name.trim() || !payload.email.trim() || !payload.phone.trim())
+    return showErr('이름, 이메일, 휴대폰 번호를 모두 입력해 주세요.');
+  if (!selected) return showErr('참석 일정을 선택해 주세요.');
+
+  btn.disabled = true; btn.textContent = '신청 중…';
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (res.ok) return showDone(data.registration, 'signup');
+
+    // 이미 신청한 이메일 → 내 신청 내역(상태) 화면으로 안내
+    if (data.code === 'DUPLICATE' && data.existing) {
+      await loadSlots();
+      return showStatus(data.existing, selected);
+    }
+    await loadSlots();
+    showErr(data.error || '신청에 실패했습니다.');
+  } catch (e) {
+    showErr('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    btn.disabled = false; btn.textContent = mode === 'edit' ? '일정 변경하기' : '신청하기';
+  }
+}
+
+// 수정 모드 진입
+function enterEditMode(existing, preselect) {
+  currentReg = existing;
+  showView('formView');
+  document.getElementById('pageTitle').textContent = '신청 일정 수정';
+  document.getElementById('pageSub').textContent = '이미 신청한 이메일입니다. 아래에서 새 일정을 선택해 변경할 수 있습니다.';
+  document.getElementById('slotTitle').textContent = '변경할 일정 선택';
+  document.getElementById('footHint').style.display = 'none';
+
+  // 본인 정보는 이메일 기준으로 고정 (읽기 전용 안내)
+  const nameEl = document.getElementById('name');
+  const emailEl = document.getElementById('email');
+  const phoneEl = document.getElementById('phone');
+  nameEl.value = existing.name; phoneEl.value = existing.phone;
+  nameEl.disabled = true; emailEl.disabled = true; phoneEl.disabled = true;
+
+  const bar = document.getElementById('editbar');
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('submitBtn');
+
+  if (!existing.canEdit) {
+    // 이미 1회 수정 완료 → 변경 불가
+    mode = 'signup';
+    bar.classList.add('show');
+    bar.innerHTML = '현재 신청 일정: <b>' + escapeHtml(existing.slotLabel) + '</b>';
+    msg.className = 'msg err';
+    msg.innerHTML = '이미 신청 및 <b>1회 수정</b>을 완료하여 더 이상 일정을 변경할 수 없습니다.';
+    btn.style.display = 'none';
+    renderSlots();
+    window.scrollTo(0, 0);
+    return;
+  }
+
+  mode = 'edit';
+  bar.classList.add('show');
+  bar.innerHTML = '이미 <b>' + escapeHtml(existing.slotLabel) + '</b> 일정으로 신청된 이메일입니다.<br>'
+    + '아래에서 새 일정을 선택하고 <b>일정 변경하기</b>를 눌러주세요. (변경은 1회만 가능)';
+  btn.textContent = '일정 변경하기';
+
+  // 처음 고른 일정이 현재 일정과 다르면 그대로 선택 유지, 같으면 해제
+  selected = (preselect && preselect !== existing.slotId) ? preselect : null;
+  renderSlots();
+  if (selected) selectSlot(selected);
+  window.scrollTo(0, 0);
+}
+
+async function doUpdate() {
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  msg.className = 'msg';
+  if (!selected) return showErr('변경할 일정을 선택해 주세요.');
+  if (selected === currentReg.slotId) return showErr('현재 신청한 일정과 동일합니다. 다른 일정을 선택해 주세요.');
+
+  btn.disabled = true; btn.textContent = '변경 중…';
+  try {
+    const res = await fetch('/api/update', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentReg.email, slotId: selected }),
+    });
+    const data = await res.json();
+    if (res.ok) return showDone(data.registration, 'edit');
+    await loadSlots();
+    showErr(data.error || '변경에 실패했습니다.');
+  } catch (e) {
+    showErr('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    btn.disabled = false; btn.textContent = '일정 변경하기';
+  }
+}
+
+function showErr(text) {
+  const msg = document.getElementById('msg');
+  msg.textContent = text; msg.className = 'msg err';
+}
+
+function showDone(reg, kind) {
+  document.getElementById('formView').style.display = 'none';
+  document.getElementById('doneView').style.display = 'block';
+  document.getElementById('doneTitle').textContent =
+    kind === 'edit' ? '일정이 변경되었습니다' : '신청이 완료되었습니다';
+  document.getElementById('doneSub').textContent =
+    kind === 'edit' ? '아래 일정으로 변경 접수되었습니다. 추가 변경은 불가합니다.' : '아래 내용으로 접수되었습니다.';
+  document.getElementById('doneDetail').innerHTML =
+    '<div><b>이름</b> ' + escapeHtml(reg.name) + '</div>' +
+    '<div><b>이메일</b> ' + escapeHtml(reg.email) + '</div>' +
+    '<div><b>휴대폰</b> ' + escapeHtml(reg.phone) + '</div>' +
+    '<div><b>신청 일정</b> ' + escapeHtml(reg.slotLabel) + '</div>' +
+    '<div><b>신청일시</b> ' + fmtDate(reg.createdAt) + '</div>' +
+    (kind === 'edit' ? '<div><b>변경일시</b> ' + fmtDate(reg.updatedAt) + '</div>' : '');
+  document.getElementById('doneFoot').innerHTML =
+    kind === 'signup'
+      ? '일정을 변경해야 하나요? <a href="/">같은 이메일로 다시 신청</a>하면 1회 변경할 수 있어요.'
+      : '';
+  window.scrollTo(0, 0);
+}
+
+// --- 내 신청 내역(상태) 화면 ---
+let pendingPreselect = null;
+
+function showStatus(reg, preselect) {
+  currentReg = reg;
+  pendingPreselect = preselect || null;
+  document.getElementById('statusDetail').innerHTML =
+    '<div><b>이름</b> ' + escapeHtml(reg.name) + '</div>' +
+    '<div><b>이메일</b> ' + escapeHtml(reg.email) + '</div>' +
+    '<div><b>휴대폰</b> ' + escapeHtml(reg.phone) + '</div>' +
+    '<div><b>신청 일정</b> ' + escapeHtml(reg.slotLabel) + '</div>' +
+    '<div><b>신청일시</b> ' + fmtDate(reg.createdAt) + '</div>' +
+    (reg.editCount >= 1 ? '<div><b>변경일시</b> ' + fmtDate(reg.updatedAt) + '</div>' : '');
+  const msg = document.getElementById('statusMsg');
+  const btn = document.getElementById('toChangeBtn');
+  if (reg.canEdit) {
+    msg.className = 'msg';
+    btn.style.display = 'block';
+  } else {
+    msg.className = 'msg err';
+    msg.innerHTML = '이미 신청 및 <b>1회 수정</b>을 완료하여 더 이상 일정을 변경할 수 없습니다.';
+    btn.style.display = 'none';
+  }
+  showView('statusView');
+  window.scrollTo(0, 0);
+}
+
+async function doLookup() {
+  const email = document.getElementById('lookupEmail').value.trim();
+  const msg = document.getElementById('lookupMsg');
+  msg.className = 'msg';
+  if (!email) { msg.textContent = '이메일을 입력해 주세요.'; msg.className = 'msg err'; return; }
+  const btn = document.getElementById('lookupBtn');
+  btn.disabled = true; btn.textContent = '조회 중…';
+  try {
+    const res = await fetch('/api/lookup?email=' + encodeURIComponent(email));
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.error; msg.className = 'msg err'; return; }
+    await loadSlots();
+    showStatus(data.registration, null);
+  } catch (e) {
+    msg.textContent = '네트워크 오류가 발생했습니다.'; msg.className = 'msg err';
+  } finally {
+    btn.disabled = false; btn.textContent = '내 신청 확인하기';
+  }
+}
+
+// 화면 전환
+function showView(name) {
+  ['formView', 'lookupView', 'statusView', 'doneView'].forEach((id) => {
+    document.getElementById(id).style.display = id === name ? '' : 'none';
+  });
+}
+
+// 신청하기 화면 초기 상태로 복귀
+function resetToForm() {
+  mode = 'signup'; currentReg = null; pendingPreselect = null; selected = null;
+  document.getElementById('pageTitle').textContent = '챌린지 오프라인 일정 신청';
+  document.getElementById('pageSub').textContent = '참석을 원하는 일정을 선택해 신청해 주세요. 한 분당 하나의 일정만 신청할 수 있습니다.';
+  document.getElementById('slotTitle').textContent = '참석 일정 선택';
+  document.getElementById('footHint').style.display = '';
+  const bar = document.getElementById('editbar'); bar.classList.remove('show'); bar.innerHTML = '';
+  ['name', 'email', 'phone'].forEach((id) => { document.getElementById(id).disabled = false; });
+  const btn = document.getElementById('submitBtn'); btn.style.display = ''; btn.textContent = '신청하기';
+  document.getElementById('msg').className = 'msg';
+  document.getElementById('warn').classList.remove('show');
+  loadSlots();
+  showView('formView');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('ko-KR',
+    { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+document.getElementById('submitBtn').onclick = onSubmit;
+document.getElementById('toLookup').onclick = () => {
+  document.getElementById('lookupMsg').className = 'msg';
+  document.getElementById('lookupEmail').value = document.getElementById('email').value.trim();
+  showView('lookupView');
+};
+document.getElementById('lookupBtn').onclick = doLookup;
+document.getElementById('lookupEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
+document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg, pendingPreselect);
+document.getElementById('backToForm1').onclick = resetToForm;
+document.getElementById('backToForm2').onclick = resetToForm;
+loadSlots();
+</script>
+</body>
+</html>

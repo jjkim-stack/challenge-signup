@@ -1,0 +1,17 @@
+{
+  "name": "challenge-signup",
+  "version": "1.0.0",
+  "description": "챌린지 오프라인 일정 신청 페이지",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "pg": "^8.22.0"
+  }
+}
