@@ -115,16 +115,30 @@ app.get('/api/admin/data', adminAuth, async (req, res, next) => {
     res.json({
       slots,
       registrations: list.map((r) => ({
+        id: r.id,
         name: r.name,
         email: r.email,
         phone: r.phone,
         slotLabel: r.slot_label,
         editCount: r.edit_count,
+        attended: r.attended,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       })),
       total: list.length,
+      attendedTotal: list.filter((r) => r.attended).length,
     });
+  } catch (e) { next(e); }
+});
+
+// 참석 여부 체크/해제 (출석부)
+app.post('/api/admin/attendance', adminAuth, async (req, res, next) => {
+  try {
+    const { id, attended } = req.body || {};
+    if (!id) return res.status(400).json({ error: '대상이 올바르지 않습니다.' });
+    const result = await db.setAttendance({ id, attended: !!attended });
+    if (!result.ok) return res.status(404).json({ error: '해당 신청 내역을 찾을 수 없습니다.' });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
@@ -132,12 +146,13 @@ app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
     const list = await db.allRegistrations(search);
-    const header = ['이름', '이메일', '휴대폰', '신청일정', '수정여부', '신청일시'];
+    const header = ['이름', '이메일', '휴대폰', '신청일정', '참석여부', '수정여부', '신청일시'];
     const rows = list.map((r) => [
       r.name,
       r.email,
       r.phone,
       r.slot_label,
+      r.attended ? '참석' : '미참석',
       r.edit_count >= 1 ? '수정함' : '-',
       new Date(r.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
     ]);

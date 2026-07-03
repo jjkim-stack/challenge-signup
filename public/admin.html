@@ -81,7 +81,7 @@
       <div style="overflow-x:auto; margin-top:10px">
         <table>
           <thead>
-            <tr><th>#</th><th>이름</th><th>이메일</th><th>휴대폰</th><th>신청 일정</th><th>수정</th><th>신청일시</th></tr>
+            <tr><th>#</th><th>참석</th><th>이름</th><th>이메일</th><th>휴대폰</th><th>신청 일정</th><th>수정</th><th>신청일시</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -135,26 +135,61 @@ function renderSummary(slots) {
 
 function renderTable(rows, total, q) {
   const info = document.getElementById('countInfo');
-  info.textContent = q ? ('"' + q + '" 검색 결과 ' + total + '건') : ('전체 신청 ' + total + '건');
+  const base = q ? ('"' + q + '" 검색 결과 ' + total + '건') : ('전체 신청 ' + total + '건');
+  info.innerHTML = esc(base) + '<span id="attendInfo"></span>';
   const tb = document.getElementById('tbody');
   tb.innerHTML = '';
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="empty">신청 내역이 없습니다.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" class="empty">신청 내역이 없습니다.</td></tr>';
     return;
   }
   rows.forEach((r, i) => {
     const tr = document.createElement('tr');
     const dt = new Date(r.createdAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!r.attended;
+    cb.style.cssText = 'width:20px; height:20px; cursor:pointer;';
+    cb.onchange = () => toggleAttendance(r.id, cb);
     tr.innerHTML =
       '<td>' + (i + 1) + '</td>' +
+      '<td class="att"></td>' +
       '<td>' + esc(r.name) + '</td>' +
       '<td>' + esc(r.email) + '</td>' +
       '<td>' + esc(r.phone) + '</td>' +
       '<td><span class="tag">' + esc(r.slotLabel) + '</span></td>' +
       '<td>' + (r.editCount >= 1 ? '수정함' : '-') + '</td>' +
       '<td>' + dt + '</td>';
+    tr.querySelector('.att').appendChild(cb);
     tb.appendChild(tr);
   });
+  updateAttendCount();
+}
+
+async function toggleAttendance(id, cb) {
+  const prev = !cb.checked; // 이전 상태 (실패 시 복원용)
+  cb.disabled = true;
+  try {
+    const res = await fetch('/api/admin/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+      body: JSON.stringify({ id, attended: cb.checked }),
+    });
+    if (!res.ok) throw new Error('fail');
+    updateAttendCount();
+  } catch (e) {
+    cb.checked = prev; // 저장 실패 시 원상복구
+    alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    cb.disabled = false;
+  }
+}
+
+function updateAttendCount() {
+  const boxes = document.querySelectorAll('#tbody input[type=checkbox]');
+  const done = document.querySelectorAll('#tbody input[type=checkbox]:checked').length;
+  const span = document.getElementById('attendInfo');
+  if (span) span.textContent = boxes.length ? ('  ·  참석 ' + done + ' / ' + boxes.length + '명') : '';
 }
 
 function esc(s) {

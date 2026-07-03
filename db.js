@@ -48,9 +48,11 @@ async function init() {
       phone      text NOT NULL,
       slot_id    text NOT NULL REFERENCES slots(id),
       edit_count int  NOT NULL DEFAULT 0,
+      attended   boolean NOT NULL DEFAULT false,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS attended boolean NOT NULL DEFAULT false;
     CREATE UNIQUE INDEX IF NOT EXISTS ux_reg_email ON registrations (lower(email));
     CREATE INDEX IF NOT EXISTS idx_reg_slot ON registrations (slot_id);
   `);
@@ -177,8 +179,16 @@ async function getByEmail(email) {
   return rows[0];
 }
 
+async function setAttendance({ id, attended }) {
+  const { rowCount } = await pool.query(
+    `UPDATE registrations SET attended = $1 WHERE id = $2`,
+    [!!attended, id]
+  );
+  return { ok: rowCount > 0 };
+}
+
 async function allRegistrations(search) {
-  let sql = `SELECT r.id, r.name, r.email, r.phone, r.slot_id, r.edit_count,
+  let sql = `SELECT r.id, r.name, r.email, r.phone, r.slot_id, r.edit_count, r.attended,
                     r.created_at, r.updated_at, s.label AS slot_label, s.sort
              FROM registrations r JOIN slots s ON s.id = r.slot_id`;
   const params = [];
@@ -200,4 +210,5 @@ module.exports = {
   updateSlot,
   getByEmail,
   allRegistrations,
+  setAttendance,
 };
