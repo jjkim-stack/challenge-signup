@@ -1,0 +1,14 @@
+name: keep-alive
+
+# 무료 서버가 잠들지 않도록 10분마다 신청 페이지를 한 번씩 깨웁니다.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping site
+        run: curl -sS --max-time 60 https://challenge-signup.onrender.com/api/slots > /dev/null || true
