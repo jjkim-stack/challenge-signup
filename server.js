@@ -93,6 +93,7 @@ function publicReg(r) {
     phone: r.phone,
     slotId: r.slot_id,
     slotLabel: r.slot_label,
+    slotPlace: r.slot_place,
     editCount: r.edit_count,
     canEdit: r.edit_count < 1,
     createdAt: r.created_at,

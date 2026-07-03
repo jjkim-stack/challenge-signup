@@ -17,14 +17,14 @@ const WAITLIST_THRESHOLD = 80; // 80% -> '마감 대기 중'
 
 // 신청 가능한 고정 일정 (날짜 × 오전/오후)
 const SLOT_DEFS = [
-  { id: '0718-am', date: '2026-07-18', day: '토', period: '오전', label: '7월 18일(토) 오전' },
-  { id: '0718-pm', date: '2026-07-18', day: '토', period: '오후', label: '7월 18일(토) 오후' },
-  { id: '0719-am', date: '2026-07-19', day: '일', period: '오전', label: '7월 19일(일) 오전' },
-  { id: '0719-pm', date: '2026-07-19', day: '일', period: '오후', label: '7월 19일(일) 오후' },
-  { id: '0721-am', date: '2026-07-21', day: '화', period: '오전', label: '7월 21일(화) 오전' },
-  { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후' },
-  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전' },
-  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후' },
+  { id: '0718-am', date: '2026-07-18', day: '토', period: '오전', label: '7월 18일(토) 오전', place: '삼성역' },
+  { id: '0718-pm', date: '2026-07-18', day: '토', period: '오후', label: '7월 18일(토) 오후', place: '삼성역' },
+  { id: '0719-am', date: '2026-07-19', day: '일', period: '오전', label: '7월 19일(일) 오전', place: '강남역' },
+  { id: '0719-pm', date: '2026-07-19', day: '일', period: '오후', label: '7월 19일(일) 오후', place: '강남역' },
+  { id: '0721-am', date: '2026-07-21', day: '화', period: '오전', label: '7월 21일(화) 오전', place: '강남역' },
+  { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후', place: '강남역' },
+  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '강남역' },
+  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '강남역' },
 ];
 
 async function init() {
@@ -35,8 +35,10 @@ async function init() {
       day    text NOT NULL,
       period text NOT NULL,
       label  text NOT NULL,
+      place  text,
       sort   int  NOT NULL
     );
+    ALTER TABLE slots ADD COLUMN IF NOT EXISTS place text;
     CREATE TABLE IF NOT EXISTS registrations (
       id         serial PRIMARY KEY,
       name       text NOT NULL,
@@ -53,9 +55,10 @@ async function init() {
   for (let i = 0; i < SLOT_DEFS.length; i++) {
     const s = SLOT_DEFS[i];
     await pool.query(
-      `INSERT INTO slots (id, date, day, period, label, sort)
-       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
-      [s.id, s.date, s.day, s.period, s.label, i]
+      `INSERT INTO slots (id, date, day, period, label, place, sort)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (id) DO UPDATE SET place = EXCLUDED.place, label = EXCLUDED.label`,
+      [s.id, s.date, s.day, s.period, s.label, s.place, i]
     );
   }
 }
@@ -69,7 +72,7 @@ function statusOf(count) {
 
 async function slotsWithCounts() {
   const { rows } = await pool.query(
-    `SELECT s.id, s.date, s.day, s.period, s.label,
+    `SELECT s.id, s.date, s.day, s.period, s.label, s.place,
             (SELECT COUNT(*)::int FROM registrations r WHERE r.slot_id = s.id) AS count
      FROM slots s ORDER BY s.sort`
   );
@@ -153,7 +156,7 @@ async function updateSlot({ email, slotId }) {
 
 async function getById(id) {
   const { rows } = await pool.query(
-    `SELECT r.*, s.label AS slot_label FROM registrations r
+    `SELECT r.*, s.label AS slot_label, s.place AS slot_place FROM registrations r
      JOIN slots s ON s.id = r.slot_id WHERE r.id = $1`,
     [id]
   );
@@ -162,7 +165,7 @@ async function getById(id) {
 
 async function getByEmail(email) {
   const { rows } = await pool.query(
-    `SELECT r.*, s.label AS slot_label FROM registrations r
+    `SELECT r.*, s.label AS slot_label, s.place AS slot_place FROM registrations r
      JOIN slots s ON s.id = r.slot_id WHERE lower(r.email) = lower($1)`,
     [email]
   );
