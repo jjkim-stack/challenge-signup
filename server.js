@@ -119,6 +119,7 @@ app.get('/api/admin/data', adminAuth, async (req, res, next) => {
         name: r.name,
         email: r.email,
         phone: r.phone,
+        slotId: r.slot_id,
         slotLabel: r.slot_label,
         editCount: r.edit_count,
         attended: r.attended,
@@ -145,7 +146,8 @@ app.post('/api/admin/attendance', adminAuth, async (req, res, next) => {
 app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
-    const list = await db.allRegistrations(search);
+    const slotId = (req.query.slot || '').toString().trim();
+    const list = await db.allRegistrations(search, slotId);
     const header = ['이름', '이메일', '휴대폰', '신청일정', '참석여부', '수정여부', '신청일시'];
     const rows = list.map((r) => [
       r.name,

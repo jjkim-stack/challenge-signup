@@ -187,15 +187,21 @@ async function setAttendance({ id, attended }) {
   return { ok: rowCount > 0 };
 }
 
-async function allRegistrations(search) {
+async function allRegistrations(search, slotId) {
   let sql = `SELECT r.id, r.name, r.email, r.phone, r.slot_id, r.edit_count, r.attended,
                     r.created_at, r.updated_at, s.label AS slot_label, s.sort
              FROM registrations r JOIN slots s ON s.id = r.slot_id`;
   const params = [];
+  const conds = [];
   if (search) {
-    sql += ` WHERE r.name ILIKE $1 OR r.email ILIKE $1 OR r.phone ILIKE $1`;
     params.push('%' + search + '%');
+    conds.push(`(r.name ILIKE $${params.length} OR r.email ILIKE $${params.length} OR r.phone ILIKE $${params.length})`);
   }
+  if (slotId) {
+    params.push(slotId);
+    conds.push(`r.slot_id = $${params.length}`);
+  }
+  if (conds.length) sql += ` WHERE ` + conds.join(' AND ');
   sql += ` ORDER BY r.created_at DESC`;
   const { rows } = await pool.query(sql, params);
   return rows;

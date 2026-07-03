@@ -26,7 +26,12 @@
   .msg.show { display:block; }
 
   .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  .scell { border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .scell { border:1px solid var(--line); border-radius:10px; padding:12px; cursor:pointer; transition:.12s; }
+  .scell:hover { border-color:var(--brand); box-shadow:0 1px 6px rgba(47,111,237,.12); }
+  .scell.sel { border-color:var(--brand); box-shadow:0 0 0 2px rgba(47,111,237,.35); background:#f5f8ff; }
+  .link-clear { background:none; border:none; color:var(--brand); font-weight:700; cursor:pointer;
+                font-size:13px; font-family:inherit; padding:0 2px; }
+  .link-clear:hover { text-decoration:underline; }
   .scell .lbl { font-size:12.5px; color:var(--muted); }
   .scell .cnt { font-size:19px; font-weight:800; margin-top:3px; }
   .scell .bar { height:6px; border-radius:4px; background:#eef1f6; margin-top:8px; overflow:hidden; }
@@ -92,6 +97,10 @@
 
 <script>
 let pw = '';
+let allRegs = [];       // 현재 불러온 전체 신청 목록 (검색 반영)
+let allSlots = [];      // 일정별 집계
+let slotFilter = null;  // 선택된 일정 id (null이면 전체)
+let curSearch = '';
 
 async function login() {
   pw = document.getElementById('pw').value;
@@ -110,10 +119,19 @@ async function loadData(q) {
       { headers: { 'x-admin-password': pw } });
     if (res.status === 401) return false;
     const data = await res.json();
-    renderSummary(data.slots);
-    renderTable(data.registrations, data.total, q);
+    allSlots = data.slots;
+    allRegs = data.registrations;
+    curSearch = q || '';
+    renderSummary(allSlots);
+    renderView();
     return true;
   } catch (e) { return false; }
+}
+
+// 일정 선택 상태를 반영해 표를 다시 그림
+function renderView() {
+  const rows = slotFilter ? allRegs.filter((r) => r.slotId === slotFilter) : allRegs;
+  renderTable(rows);
 }
 
 function renderSummary(slots) {
@@ -123,20 +141,35 @@ function renderSummary(slots) {
     const pct = Math.min(Math.round((s.count / s.capacity) * 100), 100);
     const stLabel = s.status === 'full' ? '마감' : s.status === 'waitlist' ? '마감 대기 중' : '신청 가능';
     const div = document.createElement('div');
-    div.className = 'scell ' + s.status;
+    div.className = 'scell ' + s.status + (slotFilter === s.id ? ' sel' : '');
+    div.title = '이 일정 신청자만 보기';
     div.innerHTML =
       '<div class="lbl">' + s.label + '</div>' +
       '<div class="cnt">' + s.count + ' <span style="font-size:13px;color:#9aa1ad;font-weight:600">/ ' + s.capacity + '</span></div>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       '<span class="st ' + s.status + '">' + stLabel + '</span>';
+    div.onclick = () => {
+      slotFilter = (slotFilter === s.id) ? null : s.id; // 같은 카드 다시 누르면 전체로
+      renderSummary(allSlots);
+      renderView();
+    };
     el.appendChild(div);
   });
 }
 
-function renderTable(rows, total, q) {
+function renderTable(rows) {
   const info = document.getElementById('countInfo');
-  const base = q ? ('"' + q + '" 검색 결과 ' + total + '건') : ('전체 신청 ' + total + '건');
-  info.innerHTML = esc(base) + '<span id="attendInfo"></span>';
+  let base;
+  if (slotFilter) {
+    const s = allSlots.find((x) => x.id === slotFilter);
+    base = '📅 ' + (s ? s.label : '') + (s && s.place ? ' (' + s.place + ')' : '') + ' · ' + rows.length + '건';
+  } else {
+    base = curSearch ? ('"' + curSearch + '" 검색 결과 ' + rows.length + '건') : ('전체 신청 ' + rows.length + '건');
+  }
+  info.innerHTML = esc(base) + '<span id="attendInfo"></span>'
+    + (slotFilter ? ' <button class="link-clear" id="clearFilter">✕ 전체 보기</button>' : '');
+  const clear = document.getElementById('clearFilter');
+  if (clear) clear.onclick = () => { slotFilter = null; renderSummary(allSlots); renderView(); };
   const tb = document.getElementById('tbody');
   tb.innerHTML = '';
   if (!rows.length) {
@@ -201,7 +234,8 @@ function doSearch() { loadData(document.getElementById('search').value.trim()); 
 
 function downloadCsv() {
   const q = document.getElementById('search').value.trim();
-  const url = '/api/admin/csv?q=' + encodeURIComponent(q) + '&pw=' + encodeURIComponent(pw);
+  let url = '/api/admin/csv?q=' + encodeURIComponent(q) + '&pw=' + encodeURIComponent(pw);
+  if (slotFilter) url += '&slot=' + encodeURIComponent(slotFilter);
   window.location.href = url;
 }
 
