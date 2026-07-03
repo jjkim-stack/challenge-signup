@@ -29,7 +29,8 @@
   .slot.current { outline:2px dashed #9db8f0; }
   .slot.disabled { opacity:.55; cursor:not-allowed; background:#f3f4f6; }
   .slot .lbl { font-weight:700; font-size:15px; }
-  .slot .place { font-size:12.5px; color:var(--brand-d); font-weight:600; margin-top:3px; }
+  .slot .time { font-size:12.5px; color:#1f2430; font-weight:600; margin-top:3px; }
+  .slot .place { font-size:12.5px; color:var(--brand-d); font-weight:600; margin-top:2px; }
   .slot .meta { font-size:12.5px; color:var(--muted); margin-top:4px; }
   .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-top:8px; }
   .b-open { background:#e7f6ec; color:#1a7f43; }
@@ -153,6 +154,7 @@ function renderSlots() {
     else badge = '<span class="badge b-full">마감</span>';
     div.innerHTML =
       '<div class="lbl">' + s.label + '</div>' +
+      (slotTime(s.period) ? '<div class="time">⏰ ' + slotTime(s.period) + '</div>' : '') +
       (s.place ? '<div class="place">📍 ' + escapeHtml(s.place) + '</div>' : '') +
       '<div class="meta">잔여 ' + s.remaining + ' / ' + s.capacity + '명</div>' + badge;
     if (!disabled && !isCurrent) div.onclick = () => selectSlot(s.id);
@@ -299,6 +301,7 @@ function showDone(reg, kind) {
     '<div><b>이메일</b> ' + escapeHtml(reg.email) + '</div>' +
     '<div><b>휴대폰</b> ' + escapeHtml(reg.phone) + '</div>' +
     '<div><b>신청 일정</b> ' + escapeHtml(reg.slotLabel) + '</div>' +
+    (slotTime(reg.slotLabel) ? '<div><b>시간</b> ' + slotTime(reg.slotLabel) + '</div>' : '') +
     (reg.slotPlace ? '<div><b>장소</b> ' + escapeHtml(reg.slotPlace) + '</div>' : '') +
     '<div><b>신청일시</b> ' + fmtDate(reg.createdAt) + '</div>' +
     (kind === 'edit' ? '<div><b>변경일시</b> ' + fmtDate(reg.updatedAt) + '</div>' : '');
@@ -320,6 +323,7 @@ function showStatus(reg, preselect) {
     '<div><b>이메일</b> ' + escapeHtml(reg.email) + '</div>' +
     '<div><b>휴대폰</b> ' + escapeHtml(reg.phone) + '</div>' +
     '<div><b>신청 일정</b> ' + escapeHtml(reg.slotLabel) + '</div>' +
+    (slotTime(reg.slotLabel) ? '<div><b>시간</b> ' + slotTime(reg.slotLabel) + '</div>' : '') +
     (reg.slotPlace ? '<div><b>장소</b> ' + escapeHtml(reg.slotPlace) + '</div>' : '') +
     '<div><b>신청일시</b> ' + fmtDate(reg.createdAt) + '</div>' +
     (reg.editCount >= 1 ? '<div><b>변경일시</b> ' + fmtDate(reg.updatedAt) + '</div>' : '');
@@ -378,6 +382,14 @@ function resetToForm() {
   document.getElementById('warn').classList.remove('show');
   loadSlots();
   showView('formView');
+}
+
+// 오전/오후에 따른 시간대 (오전 10:00–13:00 / 오후 14:00–17:00)
+function slotTime(text) {
+  const t = String(text || '');
+  if (t.includes('오전')) return '10:00–13:00';
+  if (t.includes('오후')) return '14:00–17:00';
+  return '';
 }
 
 function fmtDate(iso) {
