@@ -12,10 +12,10 @@ const pool = new Pool({
   ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 
-const CAPACITY = 100;
-const WAITLIST_THRESHOLD = 80; // 80% -> '마감 대기 중'
+const DEFAULT_CAPACITY = 100;
+const WAITLIST_RATIO = 0.8; // 정원의 80% 도달 시 '마감 대기 중'
 
-// 신청 가능한 고정 일정 (날짜 × 오전/오후)
+// 신청 가능한 고정 일정 (날짜 × 오전/오후). capacity 미지정 시 DEFAULT_CAPACITY(100).
 const SLOT_DEFS = [
   { id: '0718-am', date: '2026-07-18', day: '토', period: '오전', label: '7월 18일(토) 오전', place: '삼성역' },
   { id: '0718-pm', date: '2026-07-18', day: '토', period: '오후', label: '7월 18일(토) 오후', place: '삼성역' },
@@ -23,8 +23,8 @@ const SLOT_DEFS = [
   { id: '0719-pm', date: '2026-07-19', day: '일', period: '오후', label: '7월 19일(일) 오후', place: '강남역' },
   { id: '0721-am', date: '2026-07-21', day: '화', period: '오전', label: '7월 21일(화) 오전', place: '강남역' },
   { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후', place: '강남역' },
-  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '강남역' },
-  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '강남역' },
+  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '강남역', capacity: 80 },
+  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '강남역', capacity: 80 },
 ];
 
 async function init() {
@@ -34,11 +34,13 @@ async function init() {
       date   text NOT NULL,
       day    text NOT NULL,
       period text NOT NULL,
-      label  text NOT NULL,
-      place  text,
-      sort   int  NOT NULL
+      label    text NOT NULL,
+      place    text,
+      capacity int NOT NULL DEFAULT 100,
+      sort     int NOT NULL
     );
     ALTER TABLE slots ADD COLUMN IF NOT EXISTS place text;
+    ALTER TABLE slots ADD COLUMN IF NOT EXISTS capacity int NOT NULL DEFAULT 100;
     CREATE TABLE IF NOT EXISTS registrations (
       id         serial PRIMARY KEY,
       name       text NOT NULL,
@@ -55,32 +57,33 @@ async function init() {
   for (let i = 0; i < SLOT_DEFS.length; i++) {
     const s = SLOT_DEFS[i];
     await pool.query(
-      `INSERT INTO slots (id, date, day, period, label, place, sort)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT (id) DO UPDATE SET place = EXCLUDED.place, label = EXCLUDED.label`,
-      [s.id, s.date, s.day, s.period, s.label, s.place, i]
+      `INSERT INTO slots (id, date, day, period, label, place, capacity, sort)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (id) DO UPDATE SET
+         place = EXCLUDED.place, label = EXCLUDED.label, capacity = EXCLUDED.capacity`,
+      [s.id, s.date, s.day, s.period, s.label, s.place, s.capacity || DEFAULT_CAPACITY, i]
     );
   }
 }
 
 // --- 상태 계산 ---
-function statusOf(count) {
-  if (count >= CAPACITY) return 'full'; // 마감
-  if (count >= WAITLIST_THRESHOLD) return 'waitlist'; // 마감 대기 중
+function statusOf(count, capacity) {
+  if (count >= capacity) return 'full'; // 마감
+  if (count >= Math.ceil(capacity * WAITLIST_RATIO)) return 'waitlist'; // 마감 대기 중
   return 'open';
 }
 
 async function slotsWithCounts() {
   const { rows } = await pool.query(
-    `SELECT s.id, s.date, s.day, s.period, s.label, s.place,
+    `SELECT s.id, s.date, s.day, s.period, s.label, s.place, s.capacity,
             (SELECT COUNT(*)::int FROM registrations r WHERE r.slot_id = s.id) AS count
      FROM slots s ORDER BY s.sort`
   );
   return rows.map((r) => ({
     ...r,
-    capacity: CAPACITY,
-    remaining: Math.max(CAPACITY - r.count, 0),
-    status: statusOf(r.count),
+    capacity: r.capacity,
+    remaining: Math.max(r.capacity - r.count, 0),
+    status: statusOf(r.count, r.capacity),
   }));
 }
 
@@ -91,8 +94,9 @@ async function register({ name, email, phone, slotId }) {
   try {
     await client.query('BEGIN');
 
-    const slot = await client.query('SELECT 1 FROM slots WHERE id = $1', [slotId]);
+    const slot = await client.query('SELECT capacity FROM slots WHERE id = $1', [slotId]);
     if (!slot.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'BAD_SLOT' }; }
+    const capacity = slot.rows[0].capacity;
 
     // 동일 슬롯 동시 신청을 직렬화해 정원 초과 방지
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slotId]);
@@ -101,7 +105,7 @@ async function register({ name, email, phone, slotId }) {
     if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
 
     const cnt = await client.query('SELECT COUNT(*)::int AS c FROM registrations WHERE slot_id = $1', [slotId]);
-    if (cnt.rows[0].c >= CAPACITY) { await client.query('ROLLBACK'); return { ok: false, code: 'FULL' }; }
+    if (cnt.rows[0].c >= capacity) { await client.query('ROLLBACK'); return { ok: false, code: 'FULL' }; }
 
     const ins = await client.query(
       `INSERT INTO registrations (name, email, phone, slot_id) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -125,8 +129,9 @@ async function updateSlot({ email, slotId }) {
   try {
     await client.query('BEGIN');
 
-    const slot = await client.query('SELECT 1 FROM slots WHERE id = $1', [slotId]);
+    const slot = await client.query('SELECT capacity FROM slots WHERE id = $1', [slotId]);
     if (!slot.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'BAD_SLOT' }; }
+    const capacity = slot.rows[0].capacity;
 
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slotId]);
 
@@ -137,7 +142,7 @@ async function updateSlot({ email, slotId }) {
     if (r.slot_id === slotId) { await client.query('ROLLBACK'); return { ok: false, code: 'SAME_SLOT' }; }
 
     const cnt = await client.query('SELECT COUNT(*)::int AS c FROM registrations WHERE slot_id = $1', [slotId]);
-    if (cnt.rows[0].c >= CAPACITY) { await client.query('ROLLBACK'); return { ok: false, code: 'FULL' }; }
+    if (cnt.rows[0].c >= capacity) { await client.query('ROLLBACK'); return { ok: false, code: 'FULL' }; }
 
     await client.query(
       `UPDATE registrations SET slot_id = $1, edit_count = edit_count + 1, updated_at = now() WHERE id = $2`,
@@ -187,8 +192,8 @@ async function allRegistrations(search) {
 }
 
 module.exports = {
-  CAPACITY,
-  WAITLIST_THRESHOLD,
+  DEFAULT_CAPACITY,
+  WAITLIST_RATIO,
   init,
   slotsWithCounts,
   register,
