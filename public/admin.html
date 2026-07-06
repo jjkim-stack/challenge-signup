@@ -58,6 +58,20 @@
         box-shadow:0 0 0 3px rgba(47,111,237,.12); }
   .add-msg { font-size:13.5px; }
   .add-msg.err { color:#c0392b; } .add-msg.ok { color:#1a7f43; }
+  .btn-edit { padding:5px 12px; font-size:12.5px; font-weight:700; color:var(--brand);
+        background:#fff; border:1.5px solid var(--brand); border-radius:8px; cursor:pointer; font-family:inherit; }
+  .btn-edit:hover { background:#f5f8ff; }
+  .overlay { display:none; position:fixed; inset:0; background:rgba(20,26,38,.45);
+        align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .overlay.show { display:flex; }
+  .modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:420px;
+        box-shadow:0 12px 40px rgba(0,0,0,.2); }
+  .modal label { display:block; font-weight:600; font-size:13px; margin:12px 0 5px; }
+  .modal input, .modal select { width:100%; padding:10px 12px; border:1px solid var(--line);
+        border-radius:9px; font-size:14px; font-family:inherit; }
+  .modal input:focus, .modal select:focus { outline:none; border-color:var(--brand);
+        box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+  .modal .add-msg:empty { display:none; }
   @media (max-width:720px){ .summary{ grid-template-columns:repeat(2,1fr);} .add-grid{ grid-template-columns:1fr;} }
 </style>
 </head>
@@ -113,10 +127,30 @@
       <div style="overflow-x:auto; margin-top:10px">
         <table>
           <thead>
-            <tr><th>#</th><th>참석</th><th>이름</th><th>이메일</th><th>휴대폰</th><th>신청 일정</th><th>수정</th><th>신청일시</th></tr>
+            <tr><th>#</th><th>참석</th><th>이름</th><th>이메일</th><th>휴대폰</th><th>신청 일정</th><th>수정</th><th>신청일시</th><th>편집</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 편집 팝업 -->
+  <div id="editOverlay" class="overlay">
+    <div class="modal">
+      <h2 style="margin:0 0 16px; font-size:18px">신청 정보 수정</h2>
+      <label>이름</label>
+      <input id="editName" type="text" />
+      <label>이메일</label>
+      <input id="editEmail" type="text" />
+      <label>휴대폰</label>
+      <input id="editPhone" type="text" />
+      <label>신청 일정</label>
+      <select id="editSlot"></select>
+      <div class="add-msg err" id="editMsg" style="margin-top:10px"></div>
+      <div style="margin-top:18px; display:flex; gap:10px; justify-content:flex-end">
+        <button class="btn ghost" id="editCancel">취소</button>
+        <button class="btn" id="editSave">저장</button>
       </div>
     </div>
   </div>
@@ -201,7 +235,7 @@ function renderTable(rows) {
   const tb = document.getElementById('tbody');
   tb.innerHTML = '';
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty">신청 내역이 없습니다.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" class="empty">신청 내역이 없습니다.</td></tr>';
     return;
   }
   rows.forEach((r, i) => {
@@ -220,8 +254,14 @@ function renderTable(rows) {
       '<td>' + esc(r.phone) + '</td>' +
       '<td><span class="tag">' + esc(r.slotLabel) + '</span></td>' +
       '<td>' + (r.editCount >= 1 ? '수정함' : '-') + '</td>' +
-      '<td>' + dt + '</td>';
+      '<td>' + dt + '</td>' +
+      '<td class="edit"></td>';
     tr.querySelector('.att').appendChild(cb);
+    const eb = document.createElement('button');
+    eb.className = 'btn-edit';
+    eb.textContent = '편집';
+    eb.onclick = () => openEdit(r);
+    tr.querySelector('.edit').appendChild(eb);
     tb.appendChild(tr);
   });
   updateAttendCount();
@@ -326,6 +366,70 @@ async function submitAdd() {
     btn.disabled = false;
   }
 }
+
+// --- 편집 팝업 ---
+let editingId = null;
+
+function openEdit(r) {
+  editingId = r.id;
+  document.getElementById('editName').value = r.name || '';
+  document.getElementById('editEmail').value = r.email || '';
+  document.getElementById('editPhone').value = r.phone || '';
+  const sel = document.getElementById('editSlot');
+  sel.innerHTML = '';
+  allSlots.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
+    sel.appendChild(opt);
+  });
+  sel.value = r.slotId;
+  document.getElementById('editMsg').textContent = '';
+  document.getElementById('editOverlay').classList.add('show');
+  document.getElementById('editName').focus();
+}
+
+function closeEdit() {
+  editingId = null;
+  document.getElementById('editOverlay').classList.remove('show');
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const name = document.getElementById('editName').value.trim();
+  const email = document.getElementById('editEmail').value.trim();
+  const phone = document.getElementById('editPhone').value.trim();
+  const slotId = document.getElementById('editSlot').value;
+  const msg = document.getElementById('editMsg');
+  if (!name || !email || !phone || !slotId) {
+    msg.textContent = '이름 · 이메일 · 휴대폰 · 일정을 모두 입력해 주세요.';
+    return;
+  }
+  const btn = document.getElementById('editSave');
+  btn.disabled = true;
+  msg.textContent = '저장 중…';
+  try {
+    const res = await fetch('/api/admin/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+      body: JSON.stringify({ id: editingId, name, email, phone, slotId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.error || '수정에 실패했습니다.'; return; }
+    closeEdit();
+    await loadData(curSearch);
+  } catch (e) {
+    msg.textContent = '수정에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('editCancel').onclick = closeEdit;
+document.getElementById('editSave').onclick = saveEdit;
+document.getElementById('editOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'editOverlay') closeEdit();
+});
 
 document.getElementById('addToggle').onclick = () => toggleAddForm();
 document.getElementById('addCancel').onclick = () => { toggleAddForm(false); setAddMsg('', ''); };
