@@ -161,6 +161,36 @@ async function updateSlot({ email, slotId }) {
   }
 }
 
+// --- 관리자 수동 추가 (정원 초과 허용, 중복 이메일만 차단) ---
+// code: 'BAD_SLOT' | 'DUPLICATE'
+async function adminAdd({ name, email, phone, slotId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const slot = await client.query('SELECT id FROM slots WHERE id = $1', [slotId]);
+    if (!slot.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'BAD_SLOT' }; }
+
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slotId]);
+
+    const dup = await client.query('SELECT 1 FROM registrations WHERE lower(email) = lower($1)', [email]);
+    if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
+
+    const ins = await client.query(
+      `INSERT INTO registrations (name, email, phone, slot_id) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [name, email, phone, slotId]
+    );
+    await client.query('COMMIT');
+    return { ok: true, registration: await getById(ins.rows[0].id) };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (e.code === '23505') return { ok: false, code: 'DUPLICATE' };
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 async function getById(id) {
   const { rows } = await pool.query(
     `SELECT r.*, s.label AS slot_label, s.place AS slot_place FROM registrations r
@@ -217,4 +247,5 @@ module.exports = {
   getByEmail,
   allRegistrations,
   setAttendance,
+  adminAdd,
 };

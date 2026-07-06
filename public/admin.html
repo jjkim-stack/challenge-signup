@@ -51,7 +51,14 @@
   tr:hover td { background:#fafbff; }
   .tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#eef4ff; color:var(--brand-d); }
   .empty { text-align:center; color:var(--muted); padding:30px 0; }
-  @media (max-width:720px){ .summary{ grid-template-columns:repeat(2,1fr);} }
+  .add-grid { display:grid; grid-template-columns:1fr 1.4fr 1fr 1.3fr; gap:10px; }
+  .add-grid input, .add-grid select { width:100%; padding:10px 12px; border:1px solid var(--line);
+        border-radius:9px; font-size:14px; font-family:inherit; }
+  .add-grid input:focus, .add-grid select:focus { outline:none; border-color:var(--brand);
+        box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+  .add-msg { font-size:13.5px; }
+  .add-msg.err { color:#c0392b; } .add-msg.ok { color:#1a7f43; }
+  @media (max-width:720px){ .summary{ grid-template-columns:repeat(2,1fr);} .add-grid{ grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -73,6 +80,26 @@
     <div class="card">
       <div style="font-weight:700; margin-bottom:12px">일정별 신청 인원</div>
       <div class="summary" id="summary"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap">
+        <div style="font-weight:700">수강생 직접 추가</div>
+        <button class="btn ghost" id="addToggle" style="padding:7px 12px; font-size:13px">+ 추가하기</button>
+      </div>
+      <div id="addForm" style="display:none; margin-top:14px">
+        <div class="add-grid">
+          <input id="addName" type="text" placeholder="이름" />
+          <input id="addEmail" type="text" placeholder="이메일" />
+          <input id="addPhone" type="text" placeholder="휴대폰" />
+          <select id="addSlot"></select>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+          <button class="btn" id="addBtn">추가</button>
+          <button class="btn ghost" id="addCancel">취소</button>
+          <span class="add-msg" id="addMsg"></span>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -123,6 +150,7 @@ async function loadData(q) {
     allRegs = data.registrations;
     curSearch = q || '';
     renderSummary(allSlots);
+    populateAddSlots();
     renderView();
     return true;
   } catch (e) { return false; }
@@ -238,6 +266,71 @@ function downloadCsv() {
   if (slotFilter) url += '&slot=' + encodeURIComponent(slotFilter);
   window.location.href = url;
 }
+
+function populateAddSlots() {
+  const sel = document.getElementById('addSlot');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">일정 선택</option>';
+  allSlots.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
+
+function toggleAddForm(show) {
+  const form = document.getElementById('addForm');
+  const open = show === undefined ? form.style.display === 'none' : show;
+  form.style.display = open ? 'block' : 'none';
+  document.getElementById('addToggle').textContent = open ? '− 닫기' : '+ 추가하기';
+  if (open) document.getElementById('addName').focus();
+}
+
+function setAddMsg(text, kind) {
+  const m = document.getElementById('addMsg');
+  m.textContent = text || '';
+  m.className = 'add-msg' + (kind ? ' ' + kind : '');
+}
+
+async function submitAdd() {
+  const name = document.getElementById('addName').value.trim();
+  const email = document.getElementById('addEmail').value.trim();
+  const phone = document.getElementById('addPhone').value.trim();
+  const slotId = document.getElementById('addSlot').value;
+  if (!name || !email || !phone || !slotId) {
+    setAddMsg('이름 · 이메일 · 휴대폰 · 일정을 모두 입력해 주세요.', 'err');
+    return;
+  }
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true;
+  setAddMsg('추가 중…', '');
+  try {
+    const res = await fetch('/api/admin/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+      body: JSON.stringify({ name, email, phone, slotId }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setAddMsg(data.error || '추가에 실패했습니다.', 'err'); return; }
+    document.getElementById('addName').value = '';
+    document.getElementById('addEmail').value = '';
+    document.getElementById('addPhone').value = '';
+    document.getElementById('addSlot').value = '';
+    setAddMsg('✓ ' + name + ' 님을 추가했습니다.', 'ok');
+    await loadData(curSearch);
+  } catch (e) {
+    setAddMsg('추가에 실패했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('addToggle').onclick = () => toggleAddForm();
+document.getElementById('addCancel').onclick = () => { toggleAddForm(false); setAddMsg('', ''); };
+document.getElementById('addBtn').onclick = submitAdd;
+document.getElementById('addPhone').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAdd(); });
 
 document.getElementById('loginBtn').onclick = login;
 document.getElementById('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });

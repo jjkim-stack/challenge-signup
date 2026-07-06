@@ -143,6 +143,25 @@ app.post('/api/admin/attendance', adminAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// 관리자 수동 수강생 추가
+app.post('/api/admin/register', adminAuth, async (req, res, next) => {
+  try {
+    const { name, email, phone, slotId } = req.body || {};
+    const err = validApplicant({ name, email, phone });
+    if (err) return res.status(400).json({ error: err });
+    if (!slotId) return res.status(400).json({ error: '참석 일정을 선택해 주세요.' });
+
+    const result = await db.adminAdd({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      slotId,
+    });
+    if (!result.ok) return res.status(409).json({ error: CODE_MSG[result.code], code: result.code });
+    res.json({ ok: true, registration: publicReg(result.registration) });
+  } catch (e) { next(e); }
+});
+
 app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
