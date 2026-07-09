@@ -242,6 +242,20 @@ async function getByEmail(email) {
   return rows[0];
 }
 
+// 휴대폰 번호로 조회 (숫자만 비교해 하이픈/공백 차이 무시). 여러 건이면 최신 1건.
+async function getByPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return undefined;
+  const { rows } = await pool.query(
+    `SELECT r.*, s.label AS slot_label, s.place AS slot_place FROM registrations r
+     JOIN slots s ON s.id = r.slot_id
+     WHERE regexp_replace(r.phone, '\\D', '', 'g') = $1
+     ORDER BY r.created_at DESC LIMIT 1`,
+    [digits]
+  );
+  return rows[0];
+}
+
 async function setAttendance({ id, attended }) {
   const { rowCount } = await pool.query(
     `UPDATE registrations SET attended = $1 WHERE id = $2`,
@@ -278,6 +292,7 @@ module.exports = {
   register,
   updateSlot,
   getByEmail,
+  getByPhone,
   allRegistrations,
   setAttendance,
   adminAdd,

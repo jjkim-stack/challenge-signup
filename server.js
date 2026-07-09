@@ -24,7 +24,7 @@ const CODE_MSG = {
   DUPLICATE: '이미 신청 내역이 있는 이메일입니다. 일정 변경은 수정 페이지를 이용해 주세요.',
   FULL: '선택하신 일정이 마감되었습니다. 다른 일정을 선택해 주세요.',
   BAD_SLOT: '선택한 일정이 올바르지 않습니다.',
-  NOT_FOUND: '해당 이메일의 신청 내역을 찾을 수 없습니다.',
+  NOT_FOUND: '해당 정보의 신청 내역을 찾을 수 없습니다.',
   EDIT_LIMIT: '일정 수정은 1회만 가능합니다. 이미 수정하셨습니다.',
   SAME_SLOT: '현재 신청한 일정과 동일합니다. 다른 일정을 선택해 주세요.',
 };
@@ -62,12 +62,22 @@ app.post('/api/register', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// 내 신청 내역 조회 (이메일 기준)
+// 내 신청 내역 조회 (휴대폰 기준, 이메일도 하위호환 지원)
 app.get('/api/lookup', async (req, res, next) => {
   try {
+    const phone = (req.query.phone || '').toString().trim();
     const email = (req.query.email || '').toString().trim();
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '올바른 이메일을 입력해 주세요.' });
-    const reg = await db.getByEmail(email);
+    let reg;
+    if (phone) {
+      if (phone.replace(/\D/g, '').length < 9)
+        return res.status(400).json({ error: '올바른 휴대폰 번호를 입력해 주세요.' });
+      reg = await db.getByPhone(phone);
+    } else if (email) {
+      if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '올바른 이메일을 입력해 주세요.' });
+      reg = await db.getByEmail(email);
+    } else {
+      return res.status(400).json({ error: '휴대폰 번호를 입력해 주세요.' });
+    }
     if (!reg) return res.status(404).json({ error: CODE_MSG.NOT_FOUND });
     res.json({ registration: publicReg(reg) });
   } catch (e) { next(e); }

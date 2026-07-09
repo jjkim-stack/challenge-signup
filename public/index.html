@@ -96,8 +96,8 @@
   <!-- 내 신청 조회 -->
   <div id="lookupView" style="display:none">
     <div class="card">
-      <label for="lookupEmail">이메일</label>
-      <input id="lookupEmail" type="email" placeholder="신청 시 입력한 이메일" autocomplete="email" />
+      <label for="lookupPhone">휴대폰 번호</label>
+      <input id="lookupPhone" type="tel" placeholder="신청 시 입력한 휴대폰 번호" autocomplete="tel" />
       <button class="primary" id="lookupBtn" style="margin-top:16px">내 신청 확인하기</button>
       <div class="msg" id="lookupMsg"></div>
     </div>
@@ -342,14 +342,14 @@ function showStatus(reg, preselect) {
 }
 
 async function doLookup() {
-  const email = document.getElementById('lookupEmail').value.trim();
+  const phone = document.getElementById('lookupPhone').value.trim();
   const msg = document.getElementById('lookupMsg');
   msg.className = 'msg';
-  if (!email) { msg.textContent = '이메일을 입력해 주세요.'; msg.className = 'msg err'; return; }
+  if (!phone) { msg.textContent = '휴대폰 번호를 입력해 주세요.'; msg.className = 'msg err'; return; }
   const btn = document.getElementById('lookupBtn');
   btn.disabled = true; btn.textContent = '조회 중…';
   try {
-    const res = await fetch('/api/lookup?email=' + encodeURIComponent(email));
+    const res = await fetch('/api/lookup?phone=' + encodeURIComponent(phone));
     const data = await res.json();
     if (!res.ok) { msg.textContent = data.error; msg.className = 'msg err'; return; }
     await loadSlots();
@@ -406,11 +406,11 @@ function escapeHtml(s) {
 document.getElementById('submitBtn').onclick = onSubmit;
 document.getElementById('toLookup').onclick = () => {
   document.getElementById('lookupMsg').className = 'msg';
-  document.getElementById('lookupEmail').value = document.getElementById('email').value.trim();
+  document.getElementById('lookupPhone').value = document.getElementById('phone').value.trim();
   showView('lookupView');
 };
 document.getElementById('lookupBtn').onclick = doLookup;
-document.getElementById('lookupEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
+document.getElementById('lookupPhone').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
 document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg, pendingPreselect);
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
