@@ -106,7 +106,10 @@
 
   <!-- 신청 상태 화면 -->
   <div id="statusView" class="card" style="display:none">
-    <h2 style="margin:0 0 4px; font-size:19px">내 신청 내역</h2>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+      <h2 style="margin:0 0 4px; font-size:19px">내 신청 내역</h2>
+      <button class="link" id="copyBtn" style="font-size:13.5px; white-space:nowrap">📋 복사하기</button>
+    </div>
     <p class="sub" id="statusSub" style="margin-bottom:16px">아래 내용으로 신청되어 있습니다.</p>
     <div class="detail" id="statusDetail"></div>
     <div class="msg" id="statusMsg"></div>
@@ -341,6 +344,37 @@ function showStatus(reg, preselect) {
   window.scrollTo(0, 0);
 }
 
+async function copyMyReg() {
+  const r = currentReg;
+  if (!r) return;
+  const lines = [
+    '[챌린지 오프라인 일정 신청 내역]',
+    '이름: ' + r.name,
+    '이메일: ' + r.email,
+    '휴대폰: ' + r.phone,
+    '신청 일정: ' + r.slotLabel,
+    (slotTime(r.slotLabel) ? '시간: ' + slotTime(r.slotLabel) : ''),
+    (r.slotPlace ? '장소: ' + r.slotPlace : ''),
+    '신청일시: ' + fmtDate(r.createdAt),
+  ].filter(Boolean);
+  const text = lines.join('\n');
+  const btn = document.getElementById('copyBtn');
+  const done = () => { btn.textContent = '✓ 복사됨'; setTimeout(() => { btn.textContent = '📋 복사하기'; }, 1500); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    done();
+  } catch (e) {
+    alert('복사에 실패했습니다. 내용을 길게 눌러 직접 복사해 주세요.');
+  }
+}
+
 async function doLookup() {
   const value = document.getElementById('lookupInput').value.trim();
   const msg = document.getElementById('lookupMsg');
@@ -413,6 +447,7 @@ document.getElementById('toLookup').onclick = () => {
 };
 document.getElementById('lookupBtn').onclick = doLookup;
 document.getElementById('lookupInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
+document.getElementById('copyBtn').onclick = copyMyReg;
 document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg, pendingPreselect);
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
