@@ -150,6 +150,15 @@ function renderSlots() {
     const div = document.createElement('div');
     div.className = 'slot' + (disabled ? ' disabled' : '') + (selected === s.id ? ' selected' : '')
       + (isCurrent ? ' current' : '');
+    if (s.id === 'absent') {
+      div.innerHTML =
+        '<div class="lbl">' + s.label + '</div>' +
+        '<div class="place">오프라인 세션에 참석하지 않아요</div>' +
+        (isCurrent ? '<span class="badge b-cur">현재 신청</span>' : '');
+      if (!isCurrent) div.onclick = () => selectSlot(s.id);
+      el.appendChild(div);
+      return;
+    }
     let badge;
     if (isCurrent) badge = '<span class="badge b-cur">현재 신청</span>';
     else if (s.status === 'open') badge = '<span class="badge b-open">신청 가능</span>';

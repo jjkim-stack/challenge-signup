@@ -25,6 +25,8 @@ const SLOT_DEFS = [
   { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후', place: '스페이스쉐어 강남센터' },
   { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '스페이스쉐어 강남센터', capacity: 80 },
   { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '스페이스쉐어 강남센터', capacity: 80 },
+  // 오프라인에 참석하지 않는 경우 선택 (정원 제한 없음)
+  { id: 'absent', date: '', day: '', period: '', label: '미참석', place: null, capacity: 1000000 },
 ];
 
 async function init() {

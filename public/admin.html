@@ -205,11 +205,18 @@ function renderSummary(slots) {
     const div = document.createElement('div');
     div.className = 'scell ' + s.status + (slotFilter === s.id ? ' sel' : '');
     div.title = '이 일정 신청자만 보기';
+    if (s.id === 'absent') {
+      div.className = 'scell' + (slotFilter === s.id ? ' sel' : '');
+      div.innerHTML =
+        '<div class="lbl">' + s.label + '</div>' +
+        '<div class="cnt">' + s.count + ' <span style="font-size:13px;color:#9aa1ad;font-weight:600">명</span></div>';
+    } else {
     div.innerHTML =
       '<div class="lbl">' + s.label + '</div>' +
       '<div class="cnt">' + s.count + ' <span style="font-size:13px;color:#9aa1ad;font-weight:600">/ ' + s.capacity + '</span></div>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       '<span class="st ' + s.status + '">' + stLabel + '</span>';
+    }
     div.onclick = () => {
       slotFilter = (slotFilter === s.id) ? null : s.id; // 같은 카드 다시 누르면 전체로
       renderSummary(allSlots);
@@ -314,7 +321,9 @@ function populateAddSlots() {
   allSlots.forEach((s) => {
     const opt = document.createElement('option');
     opt.value = s.id;
-    opt.textContent = s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
+    opt.textContent = s.id === 'absent'
+      ? s.label + ' (' + s.count + '명)'
+      : s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
     sel.appendChild(opt);
   });
   if (prev) sel.value = prev;
@@ -380,7 +389,9 @@ function openEdit(r) {
   allSlots.forEach((s) => {
     const opt = document.createElement('option');
     opt.value = s.id;
-    opt.textContent = s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
+    opt.textContent = s.id === 'absent'
+      ? s.label + ' (' + s.count + '명)'
+      : s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
     sel.appendChild(opt);
   });
   sel.value = r.slotId;
