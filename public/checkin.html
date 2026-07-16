@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OT 현장 출석체크</title>
+<style>
+  :root { --brand:#2f6fed; --brand-d:#1f57c4; --bg:#f5f7fb; --line:#e3e7ee; --muted:#6b7280;
+          --ok:#1a7f43; --ok-bg:#e7f6ec; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+         background:var(--bg); color:#1f2430; line-height:1.5; }
+  .wrap { max-width:480px; margin:0 auto; padding:36px 20px 64px; }
+  h1 { font-size:22px; margin:0 0 6px; text-align:center; }
+  .sub { color:var(--muted); margin:0 0 24px; font-size:14px; text-align:center; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px;
+          box-shadow:0 1px 3px rgba(16,24,40,.05); }
+  label { display:block; font-weight:600; font-size:14px; margin-bottom:8px; }
+  .hint { font-size:12.5px; color:var(--muted); margin-top:8px; }
+  input.tail { width:100%; padding:16px; border:1.5px solid var(--line); border-radius:12px;
+        font-size:24px; text-align:center; letter-spacing:8px; font-weight:700; font-family:inherit; }
+  input.tail:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(47,111,237,.12); }
+  button.primary { width:100%; margin-top:18px; padding:15px; font-size:16px; font-weight:700; color:#fff;
+        background:var(--brand); border:none; border-radius:12px; cursor:pointer; font-family:inherit; }
+  button.primary:hover { background:var(--brand-d); }
+  button.primary:disabled { background:#9db8f0; cursor:not-allowed; }
+  button.ghost { width:100%; margin-top:10px; padding:13px; font-size:14.5px; font-weight:700; color:var(--brand);
+        background:#fff; border:1.5px solid var(--brand); border-radius:12px; cursor:pointer; font-family:inherit; }
+  .msg { margin-top:14px; font-size:14px; padding:12px 14px; border-radius:10px; display:none; }
+  .msg.err { display:block; background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; }
+  .msg.warn { display:block; background:#fff7ec; color:#b5651d; border:1px solid #f6e2c0; }
+
+  .pick { border:1.5px solid var(--line); border-radius:12px; padding:14px 16px; margin-top:12px;
+          cursor:pointer; transition:.12s; }
+  .pick:hover { border-color:var(--brand); }
+  .pick.selected { border-color:var(--brand); background:#eef4ff; }
+  .pick.done { opacity:.6; cursor:not-allowed; background:#f5f7fb; }
+  .pick .nm { font-weight:700; font-size:16px; }
+  .pick .sl { font-size:13.5px; color:var(--brand-d); font-weight:600; margin-top:3px; }
+  .pick .pl { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .pick .attended { display:inline-block; font-size:11px; font-weight:700; margin-top:6px;
+          padding:2px 8px; border-radius:999px; background:var(--ok-bg); color:var(--ok); }
+
+  .done { text-align:center; }
+  .done .check { width:66px; height:66px; border-radius:50%; background:var(--ok-bg); color:var(--ok);
+          font-size:36px; line-height:66px; margin:0 auto 16px; }
+  .done h2 { margin:0 0 8px; font-size:20px; }
+  .done .info { background:#f5f7fb; border-radius:12px; padding:16px; margin-top:18px; text-align:left; font-size:14.5px; }
+  .done .info div { margin:4px 0; }
+  .done .info b { display:inline-block; width:64px; color:var(--muted); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OT 현장 출석체크</h1>
+  <p class="sub">휴대폰 번호 뒷 4자리로 출석을 확인해 주세요.</p>
+
+  <!-- 1단계: 뒷자리 입력 -->
+  <div class="card" id="stepPhone">
+    <label for="tail">휴대폰 번호 뒷 4자리</label>
+    <input id="tail" class="tail" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" />
+    <button class="primary" id="lookupBtn">내 신청 내역 조회</button>
+    <div class="msg" id="phoneMsg"></div>
+  </div>
+
+  <!-- 2단계: 일정 선택 -->
+  <div class="card" id="stepPick" style="display:none">
+    <label>신청하신 일정을 선택해 주세요</label>
+    <div id="pickList"></div>
+    <button class="primary" id="checkinBtn" disabled>출석하기</button>
+    <button class="ghost" id="backBtn">← 다시 조회하기</button>
+    <div class="msg" id="pickMsg"></div>
+  </div>
+
+  <!-- 3단계: 완료 -->
+  <div class="card done" id="stepDone" style="display:none">
+    <div class="check">✓</div>
+    <h2>출석이 정상적으로 완료되었습니다.</h2>
+    <div class="info" id="doneInfo"></div>
+    <button class="primary" id="againBtn" style="margin-top:22px">확인</button>
+  </div>
+</div>
+
+<script>
+let results = [];
+let selectedId = null;
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function fmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+}
+function show(step) {
+  ['stepPhone', 'stepPick', 'stepDone'].forEach((id) => {
+    document.getElementById(id).style.display = id === step ? 'block' : 'none';
+  });
+  window.scrollTo(0, 0);
+}
+function setMsg(elId, text, kind) {
+  const m = document.getElementById(elId);
+  m.textContent = text || '';
+  m.className = 'msg' + (kind ? ' ' + kind : '');
+}
+
+async function doLookup() {
+  const tail = document.getElementById('tail').value.replace(/\D/g, '');
+  setMsg('phoneMsg', '');
+  if (tail.length !== 4) { setMsg('phoneMsg', '휴대폰 번호 뒷 4자리를 입력해 주세요.', 'err'); return; }
+  const btn = document.getElementById('lookupBtn');
+  btn.disabled = true; btn.textContent = '조회 중…';
+  try {
+    const res = await fetch('/api/checkin/lookup?tail=' + encodeURIComponent(tail));
+    const data = await res.json();
+    if (!res.ok) { setMsg('phoneMsg', data.error || '조회에 실패했습니다.', 'err'); return; }
+    results = data.results;
+    selectedId = null;
+    renderPicks();
+    show('stepPick');
+  } catch (e) {
+    setMsg('phoneMsg', '네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '내 신청 내역 조회';
+  }
+}
+
+function renderPicks() {
+  const el = document.getElementById('pickList');
+  el.innerHTML = '';
+  setMsg('pickMsg', '');
+  document.getElementById('checkinBtn').disabled = true;
+  results.forEach((r) => {
+    const div = document.createElement('div');
+    div.className = 'pick' + (r.attended ? ' done' : '');
+    div.innerHTML =
+      '<div class="nm">' + esc(r.name) + '</div>' +
+      '<div class="sl">' + esc(r.slotLabel) + '</div>' +
+      (r.slotPlace ? '<div class="pl">' + esc(r.slotPlace) + '</div>' : '') +
+      (r.attended ? '<div class="attended">이미 출석 완료 (' + esc(fmtTime(r.attendedAt)) + ')</div>' : '');
+    if (!r.attended) {
+      div.onclick = () => {
+        selectedId = r.id;
+        document.querySelectorAll('#pickList .pick').forEach((p) => p.classList.remove('selected'));
+        div.classList.add('selected');
+        document.getElementById('checkinBtn').disabled = false;
+        setMsg('pickMsg', '');
+      };
+    }
+    el.appendChild(div);
+  });
+}
+
+async function doCheckin() {
+  if (!selectedId) { setMsg('pickMsg', '출석할 일정을 선택해 주세요.', 'err'); return; }
+  const btn = document.getElementById('checkinBtn');
+  btn.disabled = true; btn.textContent = '출석 처리 중…';
+  try {
+    const res = await fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.code === 'ALREADY') {
+        setMsg('pickMsg', '이미 출석 처리된 내역입니다.'
+          + (data.attendedAt ? ' (출석시간: ' + fmtTime(data.attendedAt) + ')' : ''), 'warn');
+        const r = results.find((x) => x.id === selectedId);
+        if (r) { r.attended = true; r.attendedAt = data.attendedAt; renderPicks(); }
+        return;
+      }
+      setMsg('pickMsg', data.error || '출석 처리에 실패했습니다.', 'err');
+      return;
+    }
+    document.getElementById('doneInfo').innerHTML =
+      '<div><b>이름</b> ' + esc(data.name) + '</div>' +
+      '<div><b>일정</b> ' + esc(data.slotLabel) + '</div>' +
+      '<div><b>출석시간</b> ' + esc(fmtTime(data.attendedAt)) + '</div>';
+    show('stepDone');
+  } catch (e) {
+    setMsg('pickMsg', '네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '출석하기';
+  }
+}
+
+function reset() {
+  document.getElementById('tail').value = '';
+  results = []; selectedId = null;
+  setMsg('phoneMsg', '');
+  show('stepPhone');
+  document.getElementById('tail').focus();
+}
+
+document.getElementById('lookupBtn').onclick = doLookup;
+document.getElementById('tail').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
+document.getElementById('checkinBtn').onclick = doCheckin;
+document.getElementById('backBtn').onclick = reset;
+document.getElementById('againBtn').onclick = reset;
+</script>
+</body>
+</html>

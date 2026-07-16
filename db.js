@@ -55,6 +55,7 @@ async function init() {
       updated_at timestamptz NOT NULL DEFAULT now()
     );
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS attended boolean NOT NULL DEFAULT false;
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS attended_at timestamptz;
     ALTER TABLE registrations ALTER COLUMN email DROP NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS ux_reg_email ON registrations (lower(email));
     CREATE INDEX IF NOT EXISTS idx_reg_slot ON registrations (slot_id);
@@ -273,14 +274,56 @@ async function deleteById(id) {
 
 async function setAttendance({ id, attended }) {
   const { rowCount } = await pool.query(
-    `UPDATE registrations SET attended = $1 WHERE id = $2`,
+    `UPDATE registrations SET attended = $1,
+            attended_at = CASE WHEN $1 THEN now() ELSE NULL END
+     WHERE id = $2`,
     [!!attended, id]
   );
   return { ok: rowCount > 0 };
 }
 
+// 휴대폰 뒷 4자리로 신청 내역 조회 (여러 명일 수 있음)
+async function findByPhoneTail(tail) {
+  const digits = String(tail || '').replace(/\D/g, '');
+  if (digits.length !== 4) return [];
+  const { rows } = await pool.query(
+    `SELECT r.id, r.name, r.phone, r.attended, r.attended_at,
+            r.slot_id, s.label AS slot_label, s.place AS slot_place
+     FROM registrations r JOIN slots s ON s.id = r.slot_id
+     WHERE right(regexp_replace(r.phone, '\\D', '', 'g'), 4) = $1
+     ORDER BY s.sort, r.name`,
+    [digits]
+  );
+  return rows;
+}
+
+// 현장 출석 처리 (중복 출석 방지)
+// code: 'NOT_FOUND' | 'ALREADY'
+async function checkIn(id) {
+  const cur = await pool.query(
+    `SELECT r.*, s.label AS slot_label, s.place AS slot_place
+     FROM registrations r JOIN slots s ON s.id = r.slot_id WHERE r.id = $1`,
+    [id]
+  );
+  if (!cur.rowCount) return { ok: false, code: 'NOT_FOUND' };
+  if (cur.rows[0].attended) return { ok: false, code: 'ALREADY', registration: cur.rows[0] };
+
+  const upd = await pool.query(
+    `UPDATE registrations SET attended = true, attended_at = now()
+     WHERE id = $1 AND attended = false RETURNING attended_at`,
+    [id]
+  );
+  if (!upd.rowCount) { // 동시 요청으로 이미 처리된 경우
+    return { ok: false, code: 'ALREADY', registration: await getById(id) };
+  }
+  const reg = cur.rows[0];
+  reg.attended = true;
+  reg.attended_at = upd.rows[0].attended_at;
+  return { ok: true, registration: reg };
+}
+
 async function allRegistrations(search, slotId) {
-  let sql = `SELECT r.id, r.name, r.email, r.phone, r.slot_id, r.edit_count, r.attended,
+  let sql = `SELECT r.id, r.name, r.email, r.phone, r.slot_id, r.edit_count, r.attended, r.attended_at,
                     r.created_at, r.updated_at, s.label AS slot_label, s.sort
              FROM registrations r JOIN slots s ON s.id = r.slot_id`;
   const params = [];
@@ -313,4 +356,6 @@ module.exports = {
   adminAdd,
   adminUpdate,
   deleteById,
+  findByPhoneTail,
+  checkIn,
 };

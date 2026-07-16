@@ -111,6 +111,60 @@ function publicReg(r) {
   };
 }
 
+// --- 현장 출석체크 (QR) ---
+// 이름 일부 가리기: 홍길동 → 홍*동, 김철 → 김*
+function maskName(name) {
+  const s = String(name || '').trim();
+  if (s.length <= 1) return s;
+  if (s.length === 2) return s[0] + '*';
+  return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
+}
+
+// 휴대폰 뒷 4자리로 조회
+app.get('/api/checkin/lookup', async (req, res, next) => {
+  try {
+    const tail = (req.query.tail || '').toString().replace(/\D/g, '');
+    if (tail.length !== 4) return res.status(400).json({ error: '휴대폰 뒷 4자리를 입력해 주세요.' });
+    const list = await db.findByPhoneTail(tail);
+    if (!list.length) return res.status(404).json({ error: '신청 내역이 없습니다. 번호를 다시 확인해 주세요.' });
+    res.json({
+      results: list.map((r) => ({
+        id: r.id,
+        name: maskName(r.name),
+        slotLabel: r.slot_label,
+        slotPlace: r.slot_place,
+        attended: r.attended,
+        attendedAt: r.attended_at,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
+// 출석 처리
+app.post('/api/checkin', async (req, res, next) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: '출석할 일정을 선택해 주세요.' });
+    const result = await db.checkIn(id);
+    if (!result.ok) {
+      if (result.code === 'ALREADY') {
+        return res.status(409).json({
+          error: '이미 출석 처리되었습니다.',
+          code: 'ALREADY',
+          attendedAt: result.registration ? result.registration.attended_at : null,
+        });
+      }
+      return res.status(404).json({ error: '신청 내역을 찾을 수 없습니다.' });
+    }
+    res.json({
+      ok: true,
+      name: result.registration.name,
+      slotLabel: result.registration.slot_label,
+      attendedAt: result.registration.attended_at,
+    });
+  } catch (e) { next(e); }
+});
+
 // --- 관리자 인증 (헤더 비밀번호) ---
 function adminAuth(req, res, next) {
   const pw = req.get('x-admin-password') || req.query.pw;
@@ -213,13 +267,14 @@ app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
     const search = (req.query.q || '').toString().trim();
     const slotId = (req.query.slot || '').toString().trim();
     const list = await db.allRegistrations(search, slotId);
-    const header = ['이름', '이메일', '휴대폰', '신청일정', '참석여부', '수정여부', '신청일시'];
+    const header = ['이름', '이메일', '휴대폰', '신청일정', '참석여부', '출석시간', '수정여부', '신청일시'];
     const rows = list.map((r) => [
       r.name,
       r.email,
       r.phone,
       r.slot_label,
       r.attended ? '참석' : '미참석',
+      r.attended_at ? new Date(r.attended_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-',
       r.edit_count >= 1 ? '수정함' : '-',
       new Date(r.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
     ]);
@@ -238,6 +293,7 @@ function csvCell(v) {
 }
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/checkin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin.html')));
 
 // 오류 핸들러
 app.use((err, req, res, next) => {
