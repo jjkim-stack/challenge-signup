@@ -153,17 +153,19 @@ app.post('/api/admin/attendance', adminAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// 관리자 수동 수강생 추가
+// 관리자 수동 수강생 추가 (이메일은 선택 입력)
 app.post('/api/admin/register', adminAuth, async (req, res, next) => {
   try {
     const { name, email, phone, slotId } = req.body || {};
-    const err = validApplicant({ name, email, phone });
-    if (err) return res.status(400).json({ error: err });
+    if (!name || !name.trim()) return res.status(400).json({ error: '이름을 입력해 주세요.' });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: '휴대폰 번호를 입력해 주세요.' });
+    if (email && email.trim() && !EMAIL_RE.test(email.trim()))
+      return res.status(400).json({ error: '올바른 이메일을 입력해 주세요.' });
     if (!slotId) return res.status(400).json({ error: '참석 일정을 선택해 주세요.' });
 
     const result = await db.adminAdd({
       name: name.trim(),
-      email: email.trim(),
+      email: email ? email.trim() : '',
       phone: phone.trim(),
       slotId,
     });
@@ -177,14 +179,16 @@ app.post('/api/admin/update', adminAuth, async (req, res, next) => {
   try {
     const { id, name, email, phone, slotId } = req.body || {};
     if (!id) return res.status(400).json({ error: '대상이 올바르지 않습니다.' });
-    const err = validApplicant({ name, email, phone });
-    if (err) return res.status(400).json({ error: err });
+    if (!name || !name.trim()) return res.status(400).json({ error: '이름을 입력해 주세요.' });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: '휴대폰 번호를 입력해 주세요.' });
+    if (email && email.trim() && !EMAIL_RE.test(email.trim()))
+      return res.status(400).json({ error: '올바른 이메일을 입력해 주세요.' });
     if (!slotId) return res.status(400).json({ error: '참석 일정을 선택해 주세요.' });
 
     const result = await db.adminUpdate({
       id,
       name: name.trim(),
-      email: email.trim(),
+      email: email ? email.trim() : '',
       phone: phone.trim(),
       slotId,
     });

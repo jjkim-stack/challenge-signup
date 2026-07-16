@@ -55,6 +55,7 @@ async function init() {
       updated_at timestamptz NOT NULL DEFAULT now()
     );
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS attended boolean NOT NULL DEFAULT false;
+    ALTER TABLE registrations ALTER COLUMN email DROP NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS ux_reg_email ON registrations (lower(email));
     CREATE INDEX IF NOT EXISTS idx_reg_slot ON registrations (slot_id);
   `);
@@ -163,9 +164,10 @@ async function updateSlot({ email, slotId }) {
   }
 }
 
-// --- 관리자 수동 추가 (정원 초과 허용, 중복 이메일만 차단) ---
+// --- 관리자 수동 추가 (정원 초과 허용, 이메일은 선택) ---
 // code: 'BAD_SLOT' | 'DUPLICATE'
 async function adminAdd({ name, email, phone, slotId }) {
+  const mail = email && email.trim() ? email.trim() : null; // 이메일 미입력 시 NULL 저장
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -175,12 +177,15 @@ async function adminAdd({ name, email, phone, slotId }) {
 
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slotId]);
 
-    const dup = await client.query('SELECT 1 FROM registrations WHERE lower(email) = lower($1)', [email]);
-    if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
+    // 이메일이 있을 때만 중복 검사 (미입력은 여러 건 허용)
+    if (mail) {
+      const dup = await client.query('SELECT 1 FROM registrations WHERE lower(email) = lower($1)', [mail]);
+      if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
+    }
 
     const ins = await client.query(
       `INSERT INTO registrations (name, email, phone, slot_id) VALUES ($1,$2,$3,$4) RETURNING id`,
-      [name, email, phone, slotId]
+      [name, mail, phone, slotId]
     );
     await client.query('COMMIT');
     return { ok: true, registration: await getById(ins.rows[0].id) };
@@ -196,6 +201,7 @@ async function adminAdd({ name, email, phone, slotId }) {
 // --- 관리자 수정 (이름/이메일/휴대폰/일정 자유 수정, 중복 이메일만 차단) ---
 // code: 'BAD_SLOT' | 'DUPLICATE' | 'NOT_FOUND'
 async function adminUpdate({ id, name, email, phone, slotId }) {
+  const mail = email && email.trim() ? email.trim() : null; // 이메일 미입력 시 NULL
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -205,14 +211,16 @@ async function adminUpdate({ id, name, email, phone, slotId }) {
 
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slotId]);
 
-    const dup = await client.query(
-      'SELECT 1 FROM registrations WHERE lower(email) = lower($1) AND id <> $2', [email, id]);
-    if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
+    if (mail) {
+      const dup = await client.query(
+        'SELECT 1 FROM registrations WHERE lower(email) = lower($1) AND id <> $2', [mail, id]);
+      if (dup.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'DUPLICATE' }; }
+    }
 
     const upd = await client.query(
       `UPDATE registrations SET name = $1, email = $2, phone = $3, slot_id = $4, updated_at = now()
        WHERE id = $5`,
-      [name, email, phone, slotId, id]
+      [name, mail, phone, slotId, id]
     );
     if (!upd.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'NOT_FOUND' }; }
     await client.query('COMMIT');
