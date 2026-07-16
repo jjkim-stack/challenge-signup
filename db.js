@@ -266,6 +266,11 @@ async function getByPhone(phone) {
   return rows[0];
 }
 
+async function deleteById(id) {
+  const { rowCount } = await pool.query('DELETE FROM registrations WHERE id = $1', [id]);
+  return { ok: rowCount > 0 };
+}
+
 async function setAttendance({ id, attended }) {
   const { rowCount } = await pool.query(
     `UPDATE registrations SET attended = $1 WHERE id = $2`,
@@ -307,4 +312,5 @@ module.exports = {
   setAttendance,
   adminAdd,
   adminUpdate,
+  deleteById,
 };

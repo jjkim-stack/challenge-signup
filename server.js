@@ -197,6 +197,17 @@ app.post('/api/admin/update', adminAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// 관리자 신청 내역 삭제
+app.post('/api/admin/delete', adminAuth, async (req, res, next) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: '대상이 올바르지 않습니다.' });
+    const result = await db.deleteById(id);
+    if (!result.ok) return res.status(404).json({ error: '해당 신청 내역을 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
