@@ -17,14 +17,14 @@ const WAITLIST_RATIO = 0.8; // 정원의 80% 도달 시 '마감 대기 중'
 
 // 신청 가능한 고정 일정 (날짜 × 오전/오후). capacity 미지정 시 DEFAULT_CAPACITY(100).
 const SLOT_DEFS = [
-  { id: '0718-am', date: '2026-07-18', day: '토', period: '오전', label: '7월 18일(토) 오전', place: '스페이스쉐어 삼성역센터' },
-  { id: '0718-pm', date: '2026-07-18', day: '토', period: '오후', label: '7월 18일(토) 오후', place: '스페이스쉐어 삼성역센터' },
-  { id: '0719-am', date: '2026-07-19', day: '일', period: '오전', label: '7월 19일(일) 오전', place: '스페이스쉐어 강남센터' },
-  { id: '0719-pm', date: '2026-07-19', day: '일', period: '오후', label: '7월 19일(일) 오후', place: '스페이스쉐어 강남센터' },
-  { id: '0721-am', date: '2026-07-21', day: '화', period: '오전', label: '7월 21일(화) 오전', place: '스페이스쉐어 강남센터' },
-  { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후', place: '스페이스쉐어 강남센터' },
-  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '스페이스쉐어 강남센터', capacity: 80 },
-  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '스페이스쉐어 강남센터', capacity: 80 },
+  { id: '0718-am', date: '2026-07-18', day: '토', period: '오전', label: '7월 18일(토) 오전', place: '스페이스쉐어 삼성역센터 1층 하모니홀' },
+  { id: '0718-pm', date: '2026-07-18', day: '토', period: '오후', label: '7월 18일(토) 오후', place: '스페이스쉐어 삼성역센터 1층 하모니홀' },
+  { id: '0719-am', date: '2026-07-19', day: '일', period: '오전', label: '7월 19일(일) 오전', place: '스페이스쉐어 강남센터 3층 주피터홀' },
+  { id: '0719-pm', date: '2026-07-19', day: '일', period: '오후', label: '7월 19일(일) 오후', place: '스페이스쉐어 강남센터 3층 주피터홀' },
+  { id: '0721-am', date: '2026-07-21', day: '화', period: '오전', label: '7월 21일(화) 오전', place: '스페이스쉐어 강남센터 3층 주피터홀' },
+  { id: '0721-pm', date: '2026-07-21', day: '화', period: '오후', label: '7월 21일(화) 오후', place: '스페이스쉐어 강남센터 3층 주피터홀' },
+  { id: '0722-am', date: '2026-07-22', day: '수', period: '오전', label: '7월 22일(수) 오전', place: '스페이스쉐어 강남센터 4층 비너스홀', capacity: 80 },
+  { id: '0722-pm', date: '2026-07-22', day: '수', period: '오후', label: '7월 22일(수) 오후', place: '스페이스쉐어 강남센터 4층 비너스홀', capacity: 80 },
   // 오프라인에 참석하지 않는 경우 선택 (정원 제한 없음)
   { id: 'absent', date: '', day: '', period: '', label: '미참석', place: null, capacity: 1000000 },
 ];
