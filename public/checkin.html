@@ -44,6 +44,7 @@
   .done { text-align:center; }
   .done .check { width:66px; height:66px; border-radius:50%; background:var(--ok-bg); color:var(--ok);
           font-size:36px; line-height:66px; margin:0 auto 16px; }
+  .done .check.already { background:#fff7ec; color:#b5651d; }
   .done h2 { margin:0 0 8px; font-size:20px; }
   .done .info { background:#f5f7fb; border-radius:12px; padding:16px; margin-top:18px; text-align:left; font-size:14.5px; }
   .done .info div { margin:4px 0; }
@@ -53,13 +54,13 @@
 <body>
 <div class="wrap">
   <h1>OT 현장 출석체크</h1>
-  <p class="sub">휴대폰 번호 뒷 4자리로 출석을 확인해 주세요.</p>
+  <p class="sub">휴대폰 번호 뒷 4자리를 입력하면 출석 처리됩니다.</p>
 
   <!-- 1단계: 뒷자리 입력 -->
   <div class="card" id="stepPhone">
     <label for="tail">휴대폰 번호 뒷 4자리</label>
     <input id="tail" class="tail" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" />
-    <button class="primary" id="lookupBtn">내 신청 내역 조회</button>
+    <button class="primary" id="lookupBtn">출석하기</button>
     <div class="msg" id="phoneMsg"></div>
   </div>
 
@@ -74,8 +75,8 @@
 
   <!-- 3단계: 완료 -->
   <div class="card done" id="stepDone" style="display:none">
-    <div class="check">✓</div>
-    <h2>출석이 정상적으로 완료되었습니다.</h2>
+    <div class="check" id="doneIcon">✓</div>
+    <h2 id="doneTitle">출석이 정상적으로 완료되었습니다.</h2>
     <div class="info" id="doneInfo"></div>
     <button class="primary" id="againBtn" style="margin-top:22px">확인</button>
   </div>
@@ -105,24 +106,70 @@ function setMsg(elId, text, kind) {
   m.className = 'msg' + (kind ? ' ' + kind : '');
 }
 
+function infoHtml(name, slotLabel, attendedAt) {
+  return '<div><b>이름</b> ' + esc(name) + '</div>' +
+         '<div><b>일정</b> ' + esc(slotLabel) + '</div>' +
+         '<div><b>출석시간</b> ' + esc(fmtTime(attendedAt)) + '</div>';
+}
+
+// 완료 화면 표시 ('ok' = 방금 출석, 'already' = 이미 출석)
+function renderDone(kind, name, slotLabel, attendedAt) {
+  const icon = document.getElementById('doneIcon');
+  const title = document.getElementById('doneTitle');
+  if (kind === 'already') {
+    icon.textContent = '!'; icon.className = 'check already';
+    title.textContent = '이미 출석 처리된 내역입니다.';
+  } else {
+    icon.textContent = '✓'; icon.className = 'check';
+    title.textContent = '출석이 정상적으로 완료되었습니다.';
+  }
+  document.getElementById('doneInfo').innerHTML = infoHtml(name, slotLabel, attendedAt);
+  show('stepDone');
+}
+
+// 한 명만 조회된 경우 곧바로 출석 처리
+async function autoCheckin(r) {
+  try {
+    const res = await fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: r.id }),
+    });
+    const data = await res.json();
+    if (res.ok) { renderDone('ok', data.name, data.slotLabel, data.attendedAt); return; }
+    if (data.code === 'ALREADY') { renderDone('already', r.name, r.slotLabel, data.attendedAt); return; }
+    setMsg('phoneMsg', data.error || '출석 처리에 실패했습니다.', 'err');
+  } catch (e) {
+    setMsg('phoneMsg', '네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'err');
+  }
+}
+
 async function doLookup() {
   const tail = document.getElementById('tail').value.replace(/\D/g, '');
   setMsg('phoneMsg', '');
   if (tail.length !== 4) { setMsg('phoneMsg', '휴대폰 번호 뒷 4자리를 입력해 주세요.', 'err'); return; }
   const btn = document.getElementById('lookupBtn');
-  btn.disabled = true; btn.textContent = '조회 중…';
+  btn.disabled = true; btn.textContent = '처리 중…';
   try {
     const res = await fetch('/api/checkin/lookup?tail=' + encodeURIComponent(tail));
     const data = await res.json();
     if (!res.ok) { setMsg('phoneMsg', data.error || '조회에 실패했습니다.', 'err'); return; }
     results = data.results;
     selectedId = null;
+    // 한 명만 조회되면 바로 출석 처리 (선택 단계 생략)
+    if (results.length === 1) {
+      const r = results[0];
+      if (r.attended) renderDone('already', r.name, r.slotLabel, r.attendedAt);
+      else await autoCheckin(r);
+      return;
+    }
+    // 같은 뒷자리가 여러 명이면 본인 선택 (오출석 방지)
     renderPicks();
     show('stepPick');
   } catch (e) {
     setMsg('phoneMsg', '네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'err');
   } finally {
-    btn.disabled = false; btn.textContent = '내 신청 내역 조회';
+    btn.disabled = false; btn.textContent = '출석하기';
   }
 }
 
@@ -174,11 +221,7 @@ async function doCheckin() {
       setMsg('pickMsg', data.error || '출석 처리에 실패했습니다.', 'err');
       return;
     }
-    document.getElementById('doneInfo').innerHTML =
-      '<div><b>이름</b> ' + esc(data.name) + '</div>' +
-      '<div><b>일정</b> ' + esc(data.slotLabel) + '</div>' +
-      '<div><b>출석시간</b> ' + esc(fmtTime(data.attendedAt)) + '</div>';
-    show('stepDone');
+    renderDone('ok', data.name, data.slotLabel, data.attendedAt);
   } catch (e) {
     setMsg('pickMsg', '네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'err');
   } finally {
