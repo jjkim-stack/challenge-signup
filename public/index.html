@@ -133,10 +133,17 @@ let selected = null;
 let mode = 'signup';        // 'signup' | 'edit'
 let currentReg = null;      // 수정 모드일 때 기존 신청 정보
 
+// 기수(cohort) 감지: /15 로 시작하면 15기, 그 외 14기
+const COHORT = location.pathname.startsWith('/15') ? '15' : '14';
+const BASE = COHORT === '15' ? '/15' : '';
+const TITLE = COHORT === '15' ? '15기 OT 신청' : '챌린지 오프라인 일정 신청';
+document.title = TITLE;
+function isAbsent(id) { return id === 'absent' || id === '15-absent'; }
+
 const WAIT_MSG = '잔여 좌석이 얼마 남지 않았으니 다른 일정을 선택하는 것을 권장합니다.';
 
 async function loadSlots() {
-  const res = await fetch('/api/slots');
+  const res = await fetch('/api/slots?cohort=' + COHORT);
   slots = (await res.json()).slots;
   renderSlots();
 }
@@ -150,7 +157,7 @@ function renderSlots() {
     const div = document.createElement('div');
     div.className = 'slot' + (disabled ? ' disabled' : '') + (selected === s.id ? ' selected' : '')
       + (isCurrent ? ' current' : '');
-    if (s.id === 'absent') {
+    if (isAbsent(s.id)) {
       div.innerHTML =
         '<div class="lbl">' + s.label + '</div>' +
         '<div class="place">오프라인 세션에 참석하지 않아요</div>' +
@@ -198,6 +205,7 @@ async function doRegister() {
     email: document.getElementById('email').value,
     phone: document.getElementById('phone').value,
     slotId: selected,
+    cohort: COHORT,
   };
   if (!payload.name.trim() || !payload.email.trim() || !payload.phone.trim())
     return showErr('이름, 이메일, 휴대폰 번호를 모두 입력해 주세요.');
@@ -283,7 +291,7 @@ async function doUpdate() {
   try {
     const res = await fetch('/api/update', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: currentReg.email, slotId: selected }),
+      body: JSON.stringify({ email: currentReg.email, slotId: selected, cohort: COHORT }),
     });
     const data = await res.json();
     if (res.ok) return showDone(data.registration, 'edit');
@@ -319,7 +327,7 @@ function showDone(reg, kind) {
     (kind === 'edit' ? '<div><b>변경일시</b> ' + fmtDate(reg.updatedAt) + '</div>' : '');
   document.getElementById('doneFoot').innerHTML =
     kind === 'signup'
-      ? '일정을 변경해야 하나요? <a href="/">같은 이메일로 다시 신청</a>하면 1회 변경할 수 있어요.'
+      ? '일정을 변경해야 하나요? <a href="' + (BASE || '/') + '">같은 이메일로 다시 신청</a>하면 1회 변경할 수 있어요.'
       : '';
   window.scrollTo(0, 0);
 }
@@ -393,7 +401,7 @@ async function doLookup() {
   const btn = document.getElementById('lookupBtn');
   btn.disabled = true; btn.textContent = '조회 중…';
   try {
-    const res = await fetch('/api/lookup?' + param + encodeURIComponent(value));
+    const res = await fetch('/api/lookup?cohort=' + COHORT + '&' + param + encodeURIComponent(value));
     const data = await res.json();
     if (!res.ok) { msg.textContent = data.error; msg.className = 'msg err'; return; }
     await loadSlots();
@@ -415,7 +423,7 @@ function showView(name) {
 // 신청하기 화면 초기 상태로 복귀
 function resetToForm() {
   mode = 'signup'; currentReg = null; pendingPreselect = null; selected = null;
-  document.getElementById('pageTitle').textContent = '챌린지 오프라인 일정 신청';
+  document.getElementById('pageTitle').textContent = TITLE;
   document.getElementById('pageSub').textContent = '참석을 원하는 일정을 선택해 신청해 주세요. 한 분당 하나의 일정만 신청할 수 있습니다.';
   document.getElementById('slotTitle').textContent = '참석 일정 선택';
   document.getElementById('footHint').style.display = '';
@@ -460,6 +468,7 @@ document.getElementById('copyBtn').onclick = copyMyReg;
 document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg, pendingPreselect);
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
+document.getElementById('pageTitle').textContent = TITLE;
 loadSlots();
 </script>
 </body>

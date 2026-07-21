@@ -167,6 +167,15 @@ let allSlots = [];      // 일정별 집계
 let slotFilter = null;  // 선택된 일정 id (null이면 전체)
 let curSearch = '';
 
+// 기수(cohort) 감지: /15/admin 이면 15기, 그 외 14기
+const COHORT = location.pathname.startsWith('/15') ? '15' : '14';
+function isAbsent(id) { return id === 'absent' || id === '15-absent'; }
+if (COHORT === '15') {
+  document.title = '관리자 · 15기 신청 현황';
+  const h = document.querySelector('#dashView h1');
+  if (h) h.textContent = '15기 OT 신청 현황';
+}
+
 async function login() {
   pw = document.getElementById('pw').value;
   const ok = await loadData('');
@@ -180,7 +189,7 @@ async function login() {
 
 async function loadData(q) {
   try {
-    const res = await fetch('/api/admin/data?q=' + encodeURIComponent(q || ''),
+    const res = await fetch('/api/admin/data?cohort=' + COHORT + '&q=' + encodeURIComponent(q || ''),
       { headers: { 'x-admin-password': pw } });
     if (res.status === 401) return false;
     const data = await res.json();
@@ -209,7 +218,7 @@ function renderSummary(slots) {
     const div = document.createElement('div');
     div.className = 'scell ' + s.status + (slotFilter === s.id ? ' sel' : '');
     div.title = '이 일정 신청자만 보기';
-    if (s.id === 'absent') {
+    if (isAbsent(s.id)) {
       div.className = 'scell' + (slotFilter === s.id ? ' sel' : '');
       div.innerHTML =
         '<div class="lbl">' + s.label + '</div>' +
@@ -335,7 +344,7 @@ function doSearch() { loadData(document.getElementById('search').value.trim()); 
 
 function downloadCsv() {
   const q = document.getElementById('search').value.trim();
-  let url = '/api/admin/csv?q=' + encodeURIComponent(q) + '&pw=' + encodeURIComponent(pw);
+  let url = '/api/admin/csv?cohort=' + COHORT + '&q=' + encodeURIComponent(q) + '&pw=' + encodeURIComponent(pw);
   if (slotFilter) url += '&slot=' + encodeURIComponent(slotFilter);
   window.location.href = url;
 }
@@ -347,7 +356,7 @@ function populateAddSlots() {
   allSlots.forEach((s) => {
     const opt = document.createElement('option');
     opt.value = s.id;
-    opt.textContent = s.id === 'absent'
+    opt.textContent = isAbsent(s.id)
       ? s.label + ' (' + s.count + '명)'
       : s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
     sel.appendChild(opt);
@@ -415,7 +424,7 @@ function openEdit(r) {
   allSlots.forEach((s) => {
     const opt = document.createElement('option');
     opt.value = s.id;
-    opt.textContent = s.id === 'absent'
+    opt.textContent = isAbsent(s.id)
       ? s.label + ' (' + s.count + '명)'
       : s.label + (s.place ? ' · ' + s.place : '') + ' (' + s.count + '/' + s.capacity + ')';
     sel.appendChild(opt);

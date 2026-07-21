@@ -85,6 +85,7 @@
 <script>
 let results = [];
 let selectedId = null;
+const COHORT = location.pathname.startsWith('/15') ? '15' : '14';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -151,7 +152,7 @@ async function doLookup() {
   const btn = document.getElementById('lookupBtn');
   btn.disabled = true; btn.textContent = '처리 중…';
   try {
-    const res = await fetch('/api/checkin/lookup?tail=' + encodeURIComponent(tail));
+    const res = await fetch('/api/checkin/lookup?cohort=' + COHORT + '&tail=' + encodeURIComponent(tail));
     const data = await res.json();
     if (!res.ok) { setMsg('phoneMsg', data.error || '조회에 실패했습니다.', 'err'); return; }
     results = data.results;

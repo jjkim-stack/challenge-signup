@@ -10,6 +10,12 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- 기수(cohort) 파싱 (지원: '14' | '15', 기본 '14') ---
+function getCohort(req) {
+  const c = (req.query.cohort || (req.body && req.body.cohort) || '').toString().trim();
+  return c === '15' ? '15' : '14';
+}
+
 // --- 입력 검증 ---
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -32,7 +38,7 @@ const CODE_MSG = {
 // --- 공개 API ---
 app.get('/api/slots', async (req, res, next) => {
   try {
-    res.json({ slots: await db.slotsWithCounts() });
+    res.json({ slots: await db.slotsWithCounts(getCohort(req)) });
   } catch (e) { next(e); }
 });
 
@@ -53,7 +59,7 @@ app.post('/api/register', async (req, res, next) => {
       // 중복 이메일이면 기존 신청 정보를 함께 내려 수정/조회 화면으로 전환할 수 있게 함
       const body = { error: CODE_MSG[result.code], code: result.code };
       if (result.code === 'DUPLICATE') {
-        const existing = await db.getByEmail(email.trim());
+        const existing = await db.getByEmail(email.trim(), getCohort(req));
         if (existing) body.existing = publicReg(existing);
       }
       return res.status(409).json(body);
@@ -67,14 +73,15 @@ app.get('/api/lookup', async (req, res, next) => {
   try {
     const phone = (req.query.phone || '').toString().trim();
     const email = (req.query.email || '').toString().trim();
+    const cohort = getCohort(req);
     let reg;
     if (phone) {
       if (phone.replace(/\D/g, '').length < 9)
         return res.status(400).json({ error: '올바른 휴대폰 번호를 입력해 주세요.' });
-      reg = await db.getByPhone(phone);
+      reg = await db.getByPhone(phone, cohort);
     } else if (email) {
       if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '올바른 이메일을 입력해 주세요.' });
-      reg = await db.getByEmail(email);
+      reg = await db.getByEmail(email, cohort);
     } else {
       return res.status(400).json({ error: '휴대폰 번호를 입력해 주세요.' });
     }
@@ -125,7 +132,7 @@ app.get('/api/checkin/lookup', async (req, res, next) => {
   try {
     const tail = (req.query.tail || '').toString().replace(/\D/g, '');
     if (tail.length !== 4) return res.status(400).json({ error: '휴대폰 뒷 4자리를 입력해 주세요.' });
-    const list = await db.findByPhoneTail(tail);
+    const list = await db.findByPhoneTail(tail, getCohort(req));
     if (!list.length) return res.status(404).json({ error: '신청 내역이 없습니다. 번호를 다시 확인해 주세요.' });
     res.json({
       results: list.map((r) => ({
@@ -175,7 +182,8 @@ function adminAuth(req, res, next) {
 app.get('/api/admin/data', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
-    const [slots, list] = await Promise.all([db.slotsWithCounts(), db.allRegistrations(search)]);
+    const cohort = getCohort(req);
+    const [slots, list] = await Promise.all([db.slotsWithCounts(cohort), db.allRegistrations(search, '', cohort)]);
     res.json({
       slots,
       registrations: list.map((r) => ({
@@ -266,7 +274,7 @@ app.get('/api/admin/csv', adminAuth, async (req, res, next) => {
   try {
     const search = (req.query.q || '').toString().trim();
     const slotId = (req.query.slot || '').toString().trim();
-    const list = await db.allRegistrations(search, slotId);
+    const list = await db.allRegistrations(search, slotId, getCohort(req));
     const header = ['이름', '이메일', '휴대폰', '신청일정', '참석여부', '출석시간', '수정여부', '신청일시'];
     const rows = list.map((r) => [
       r.name,
@@ -294,6 +302,11 @@ function csvCell(v) {
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/checkin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin.html')));
+
+// --- 15기 페이지 (동일 화면, 프론트에서 cohort 감지) ---
+app.get('/15', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/15/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/15/checkin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin.html')));
 
 // 오류 핸들러
 app.use((err, req, res, next) => {
