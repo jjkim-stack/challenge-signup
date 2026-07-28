@@ -44,6 +44,20 @@
              font-size:13.5px; margin-bottom:16px; display:none; }
   .editbar.show { display:block; }
   .editbar b { color:var(--brand-d); }
+  .notice { background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 22px; margin-bottom:18px;
+            box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .notice-title { font-weight:800; font-size:16px; margin:0 0 14px; }
+  .notice-list { margin:0; padding-left:20px; }
+  .notice-list > li { margin:0 0 16px; }
+  .notice-list > li:last-child { margin-bottom:0; }
+  .notice-list > li b { font-size:14.5px; }
+  .notice-list p { margin:6px 0 0; font-size:13.5px; color:#3a4152; }
+  .notice-list .notice-sub { color:var(--muted); font-size:12.5px; margin-top:6px; }
+  .notice-btn { display:inline-block; margin-top:9px; padding:9px 16px; font-size:13.5px; font-weight:700;
+            color:#fff; background:var(--brand); border-radius:9px; text-decoration:none; }
+  .notice-btn:hover { background:var(--brand-d); }
+  .notice-btn.ghost { color:var(--brand); background:#fff; border:1.5px solid var(--brand); }
+  .notice-btn.ghost:hover { background:#f5f8ff; }
   button.primary { width:100%; margin-top:20px; padding:14px; font-size:16px; font-weight:700; color:#fff;
           background:var(--brand); border:none; border-radius:10px; cursor:pointer; }
   button.primary:hover { background:var(--brand-d); }
@@ -71,6 +85,33 @@
 
   <!-- 신청/수정 폼 -->
   <div id="formView">
+    <!-- 15기 참석 전 필수 확인 공지 (15기 페이지에서만 표시) -->
+    <div class="notice" id="notice15" style="display:none">
+      <div class="notice-title">📢 챌린지 참석 전 필수 확인 사항</div>
+      <ol class="notice-list">
+        <li>
+          <b>15기 챌린지 단톡방 입장 (필수)</b>
+          <p>공지사항 전달을 위해 단톡방 입장이 꼭 필요합니다.</p>
+          <a class="notice-btn" id="kakaoLink" href="#" target="_blank" rel="noopener">챌린지 단톡방 바로가기 →</a>
+          <p class="notice-sub">※ 참여 코드: 1234</p>
+        </li>
+        <li>
+          <b>OT 준비물 안내</b>
+          <p>노트북, 충전기, 마우스(건전지 확인)</p>
+        </li>
+        <li>
+          <b>주차 안내</b>
+          <p>별도의 주차 지원은 제공되지 않습니다.<br>
+             차량 이용 시 인근 공용주차장을 이용해 주시기 바랍니다.<br>
+             주차 공간이 혼잡할 수 있으니 가급적 대중교통 이용을 권장드립니다.</p>
+        </li>
+        <li>
+          <b>문의 사항 안내</b>
+          <p><a class="notice-btn ghost" href="https://cclass.channel.io/home" target="_blank" rel="noopener">1:1 고객센터 문의하기 →</a></p>
+        </li>
+      </ol>
+    </div>
+
     <div class="editbar" id="editbar"></div>
 
     <div class="card">
@@ -469,6 +510,7 @@ document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg,
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
 document.getElementById('pageTitle').textContent = TITLE;
+if (COHORT === '15') document.getElementById('notice15').style.display = 'block';
 loadSlots();
 </script>
 </body>
