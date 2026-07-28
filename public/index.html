@@ -85,32 +85,6 @@
 
   <!-- 신청/수정 폼 -->
   <div id="formView">
-    <!-- 15기 참석 전 필수 확인 공지 (15기 페이지에서만 표시) -->
-    <div class="notice" id="notice15" style="display:none">
-      <div class="notice-title">📢 챌린지 참석 전 필수 확인 사항</div>
-      <ol class="notice-list">
-        <li>
-          <b>15기 챌린지 단톡방 입장 (필수)</b>
-          <p>공지사항 전달을 위해 단톡방 입장이 꼭 필요합니다.</p>
-          <a class="notice-btn" id="kakaoLink" href="https://open.kakao.com/o/gsUPk3Ei" target="_blank" rel="noopener">챌린지 단톡방 바로가기 →</a>
-        </li>
-        <li>
-          <b>OT 준비물 안내</b>
-          <p>노트북, 충전기, 마우스(건전지 확인)</p>
-        </li>
-        <li>
-          <b>주차 안내</b>
-          <p>별도의 주차 지원은 제공되지 않습니다.<br>
-             차량 이용 시 인근 공용주차장을 이용해 주시기 바랍니다.<br>
-             주차 공간이 혼잡할 수 있으니 가급적 대중교통 이용을 권장드립니다.</p>
-        </li>
-        <li>
-          <b>문의 사항 안내</b>
-          <p><a class="notice-btn ghost" href="https://cclass.channel.io/home" target="_blank" rel="noopener">1:1 고객센터 문의하기 →</a></p>
-        </li>
-      </ol>
-    </div>
-
     <div class="editbar" id="editbar"></div>
 
     <div class="card">
@@ -158,12 +132,40 @@
   </div>
 
   <!-- 완료 화면 -->
-  <div id="doneView" class="card done" style="display:none">
-    <div class="check">✓</div>
-    <h2 id="doneTitle">신청이 완료되었습니다</h2>
-    <p class="sub" id="doneSub" style="margin-bottom:0">아래 내용으로 접수되었습니다.</p>
-    <div class="detail" id="doneDetail"></div>
-    <p class="foot" id="doneFoot"></p>
+  <div id="doneWrap" style="display:none">
+    <div id="doneView" class="card done">
+      <div class="check">✓</div>
+      <h2 id="doneTitle">신청이 완료되었습니다</h2>
+      <p class="sub" id="doneSub" style="margin-bottom:0">아래 내용으로 접수되었습니다.</p>
+      <div class="detail" id="doneDetail"></div>
+      <p class="foot" id="doneFoot"></p>
+    </div>
+
+    <!-- 15기 참석 전 필수 확인 공지 (완료 페이지, 15기에서만 표시) -->
+    <div class="notice" id="notice15" style="display:none">
+      <div class="notice-title">📢 챌린지 참석 전 필수 확인 사항</div>
+      <ol class="notice-list">
+        <li>
+          <b>15기 챌린지 단톡방 입장 (필수)</b>
+          <p>공지사항 전달을 위해 단톡방 입장이 꼭 필요합니다.</p>
+          <a class="notice-btn" id="kakaoLink" href="https://open.kakao.com/o/gsUPk3Ei" target="_blank" rel="noopener">챌린지 단톡방 바로가기 →</a>
+        </li>
+        <li>
+          <b>OT 준비물 안내</b>
+          <p>노트북, 충전기, 마우스(건전지 확인)</p>
+        </li>
+        <li>
+          <b>주차 안내</b>
+          <p>별도의 주차 지원은 제공되지 않습니다.<br>
+             차량 이용 시 인근 공용주차장을 이용해 주시기 바랍니다.<br>
+             주차 공간이 혼잡할 수 있으니 가급적 대중교통 이용을 권장드립니다.</p>
+        </li>
+        <li>
+          <b>문의 사항 안내</b>
+          <p><a class="notice-btn ghost" href="https://cclass.channel.io/home" target="_blank" rel="noopener">1:1 고객센터 문의하기 →</a></p>
+        </li>
+      </ol>
+    </div>
   </div>
 </div>
 
@@ -350,8 +352,8 @@ function showErr(text) {
 }
 
 function showDone(reg, kind) {
-  document.getElementById('formView').style.display = 'none';
-  document.getElementById('doneView').style.display = 'block';
+  showView('doneWrap');
+  if (COHORT === '15') document.getElementById('notice15').style.display = 'block';
   document.getElementById('doneTitle').textContent =
     kind === 'edit' ? '일정이 변경되었습니다' : '신청이 완료되었습니다';
   document.getElementById('doneSub').textContent =
@@ -455,7 +457,7 @@ async function doLookup() {
 
 // 화면 전환
 function showView(name) {
-  ['formView', 'lookupView', 'statusView', 'doneView'].forEach((id) => {
+  ['formView', 'lookupView', 'statusView', 'doneWrap'].forEach((id) => {
     document.getElementById(id).style.display = id === name ? '' : 'none';
   });
 }
@@ -509,7 +511,6 @@ document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg,
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
 document.getElementById('pageTitle').textContent = TITLE;
-if (COHORT === '15') document.getElementById('notice15').style.display = 'block';
 loadSlots();
 </script>
 </body>
