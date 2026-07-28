@@ -138,34 +138,35 @@
       <h2 id="doneTitle">신청이 완료되었습니다</h2>
       <p class="sub" id="doneSub" style="margin-bottom:0">아래 내용으로 접수되었습니다.</p>
       <div class="detail" id="doneDetail"></div>
+      <button class="link" id="doneCopyBtn" style="font-size:14px; margin-top:2px">📋 신청 내역 복사하기</button>
       <p class="foot" id="doneFoot"></p>
     </div>
+  </div>
 
-    <!-- 15기 참석 전 필수 확인 공지 (완료 페이지, 15기에서만 표시) -->
-    <div class="notice" id="notice15" style="display:none">
-      <div class="notice-title">📢 챌린지 참석 전 필수 확인 사항</div>
-      <ol class="notice-list">
-        <li>
-          <b>15기 챌린지 단톡방 입장 (필수)</b>
-          <p>공지사항 전달을 위해 단톡방 입장이 꼭 필요합니다.</p>
-          <a class="notice-btn" id="kakaoLink" href="https://open.kakao.com/o/gsUPk3Ei" target="_blank" rel="noopener">챌린지 단톡방 바로가기 →</a>
-        </li>
-        <li>
-          <b>OT 준비물 안내</b>
-          <p>노트북, 충전기, 마우스(건전지 확인)</p>
-        </li>
-        <li>
-          <b>주차 안내</b>
-          <p>별도의 주차 지원은 제공되지 않습니다.<br>
-             차량 이용 시 인근 공용주차장을 이용해 주시기 바랍니다.<br>
-             주차 공간이 혼잡할 수 있으니 가급적 대중교통 이용을 권장드립니다.</p>
-        </li>
-        <li>
-          <b>문의 사항 안내</b>
-          <p><a class="notice-btn ghost" href="https://cclass.channel.io/home" target="_blank" rel="noopener">1:1 고객센터 문의하기 →</a></p>
-        </li>
-      </ol>
-    </div>
+  <!-- 15기 참석 전 필수 확인 공지 (완료·조회 화면에서 15기에만 표시) -->
+  <div class="notice" id="notice15" style="display:none">
+    <div class="notice-title">📢 챌린지 참석 전 필수 확인 사항</div>
+    <ol class="notice-list">
+      <li>
+        <b>15기 챌린지 단톡방 입장 (필수)</b>
+        <p>공지사항 전달을 위해 단톡방 입장이 꼭 필요합니다.</p>
+        <a class="notice-btn" id="kakaoLink" href="https://open.kakao.com/o/gsUPk3Ei" target="_blank" rel="noopener">챌린지 단톡방 바로가기 →</a>
+      </li>
+      <li>
+        <b>OT 준비물 안내</b>
+        <p>노트북, 충전기, 마우스(건전지 확인)</p>
+      </li>
+      <li>
+        <b>주차 안내</b>
+        <p>별도의 주차 지원은 제공되지 않습니다.<br>
+           차량 이용 시 인근 공용주차장을 이용해 주시기 바랍니다.<br>
+           주차 공간이 혼잡할 수 있으니 가급적 대중교통 이용을 권장드립니다.</p>
+      </li>
+      <li>
+        <b>문의 사항 안내</b>
+        <p><a class="notice-btn ghost" href="https://cclass.channel.io/home" target="_blank" rel="noopener">1:1 고객센터 문의하기 →</a></p>
+      </li>
+    </ol>
   </div>
 </div>
 
@@ -351,7 +352,9 @@ function showErr(text) {
   msg.textContent = text; msg.className = 'msg err';
 }
 
+let lastDoneReg = null;
 function showDone(reg, kind) {
+  lastDoneReg = reg;
   showView('doneWrap');
   if (COHORT === '15') document.getElementById('notice15').style.display = 'block';
   document.getElementById('doneTitle').textContent =
@@ -400,14 +403,14 @@ function showStatus(reg, preselect) {
     btn.style.display = 'none';
   }
   showView('statusView');
+  if (COHORT === '15') document.getElementById('notice15').style.display = 'block';
   window.scrollTo(0, 0);
 }
 
-async function copyMyReg() {
-  const r = currentReg;
-  if (!r) return;
+async function copyReg(r, btn, label) {
+  if (!r || !btn) return;
   const lines = [
-    '[챌린지 오프라인 일정 신청 내역]',
+    '[' + TITLE + ' 신청 내역]',
     '이름: ' + r.name,
     '이메일: ' + r.email,
     '휴대폰: ' + r.phone,
@@ -417,8 +420,7 @@ async function copyMyReg() {
     '신청일시: ' + fmtDate(r.createdAt),
   ].filter(Boolean);
   const text = lines.join('\n');
-  const btn = document.getElementById('copyBtn');
-  const done = () => { btn.textContent = '✓ 복사됨'; setTimeout(() => { btn.textContent = '📋 복사하기'; }, 1500); };
+  const done = () => { btn.textContent = '✓ 복사됨'; setTimeout(() => { btn.textContent = label; }, 1500); };
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
@@ -433,6 +435,8 @@ async function copyMyReg() {
     alert('복사에 실패했습니다. 내용을 길게 눌러 직접 복사해 주세요.');
   }
 }
+function copyMyReg() { return copyReg(currentReg, document.getElementById('copyBtn'), '📋 복사하기'); }
+function copyDoneReg() { return copyReg(lastDoneReg, document.getElementById('doneCopyBtn'), '📋 신청 내역 복사하기'); }
 
 async function doLookup() {
   const value = document.getElementById('lookupInput').value.trim();
@@ -460,6 +464,9 @@ function showView(name) {
   ['formView', 'lookupView', 'statusView', 'doneWrap'].forEach((id) => {
     document.getElementById(id).style.display = id === name ? '' : 'none';
   });
+  // 공지는 완료/조회 화면에서만 표시 (기본은 숨김)
+  const notice = document.getElementById('notice15');
+  if (notice) notice.style.display = 'none';
 }
 
 // 신청하기 화면 초기 상태로 복귀
@@ -507,6 +514,7 @@ document.getElementById('toLookup').onclick = () => {
 document.getElementById('lookupBtn').onclick = doLookup;
 document.getElementById('lookupInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
 document.getElementById('copyBtn').onclick = copyMyReg;
+document.getElementById('doneCopyBtn').onclick = copyDoneReg;
 document.getElementById('toChangeBtn').onclick = () => enterEditMode(currentReg, pendingPreselect);
 document.getElementById('backToForm1').onclick = resetToForm;
 document.getElementById('backToForm2').onclick = resetToForm;
